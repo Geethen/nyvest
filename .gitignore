@@ -8,3 +8,15 @@ wheels/
 
 # Virtual environments
 .venv
+geo/
+
+# Secrets / env files
+.env
+.env.*
+.envrc
+*.key
+*.pem
+
+# Experiment tracking / large outputs
+wandb/
+*.log

@@ -1,0 +1,9 @@
+model,n_train_used,n_val_used,train_time_s,val_time_s,f1_macro,balanced_accuracy,peak_mem_mb,fit_mem_delta_mb,error
+dummy,5000.0,2000.0,0.0,0.0,0.0037,0.0455,258.0,0.0,
+linear,5000.0,2000.0,0.44,0.0,0.6077,0.6149,258.0,7.0,
+rf,5000.0,2000.0,0.15,0.01,0.5334,0.542,258.0,15.0,
+xgboost,5000.0,2000.0,1.03,0.01,0.5633,0.5679,263.0,5.0,
+lightgbm,5000.0,2000.0,0.93,0.02,0.574,0.576,310.0,5.0,
+catboost,5000.0,2000.0,4.29,0.0,0.5427,0.5507,365.0,19.0,
+tabpfn,,,,,,,,,Number of classes `22` exceeds the maximum number of classes `10` officially supported by TabPFN.
+tabicl,5000.0,2000.0,0.72,711.77,0.643,0.6491,18119.0,174.0,
