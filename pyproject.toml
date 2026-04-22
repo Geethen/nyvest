@@ -3,5 +3,26 @@ name = "nyvest"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "pandas",
+    "geopandas",
+    "pyogrio",
+    "rasterio",
+    "rioxarray",
+    "xarray",
+    "dask",
+    "scikit-learn",
+    "lightgbm",
+    "xgboost",
+    "catboost",
+    "torch",
+    "torchgeo",
+    "tabpfn",
+    "tabpfn-extensions[many_class]",
+    "tabicl",
+    "wandb",
+    "psutil",
+    "earthengine-api",
+    "geemap",
+]

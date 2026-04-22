@@ -34,8 +34,39 @@ from sklearn.preprocessing import LabelEncoder
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-DATA_DIR = Path("P:/154001_nyvest/landcover_megan")
 TARGET = "fallbck"
+# Known project roots across environments. P:/ is the Windows local mount;
+# /data/P-Prosjekter2 is the Linux VDI mount of the same share.
+_DATA_ROOT_CANDIDATES = (
+    Path("/data/P-Prosjekter2/154001_nyvest"),
+    Path("P:/154001_nyvest"),
+)
+
+
+def get_data_dir() -> Path:
+    """Resolve the landcover_megan data directory across local/server envs.
+
+    Override with NYVEST_DATA_DIR (points to the project root containing
+    landcover_megan/).
+    """
+    env = os.environ.get("NYVEST_DATA_DIR")
+    if env:
+        root = Path(env)
+    else:
+        root = next((p for p in _DATA_ROOT_CANDIDATES if p.exists()), None)
+        if root is None:
+            raise FileNotFoundError(
+                "Could not locate NYVEST project root. Tried: "
+                + ", ".join(str(p) for p in _DATA_ROOT_CANDIDATES)
+                + ". Set NYVEST_DATA_DIR to the project root."
+            )
+    data_dir = root / "landcover_megan"
+    if not data_dir.exists():
+        raise FileNotFoundError(f"landcover_megan not found under {root}")
+    return data_dir
+
+
+DATA_DIR = get_data_dir()
 DROP_COLS = ("split", "geometry")
 WANDB_PROJECT = "nyvest-tabular-benchmark"
 
@@ -123,7 +154,27 @@ def fit_predict(model, X_train, y_train, X_val, predict_chunk_size=None):
     return y_pred, train_time, val_time, mem_stats
 
 
-def build_model(name: str, n_classes: int, seed: int = 0, n_estimators: int = 500, n_jobs: int = 4):
+def resolve_device(device: str) -> str:
+    """Resolve 'auto' to 'cuda' if a CUDA device is visible, else 'cpu'."""
+    if device != "auto":
+        return device
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
+def build_model(
+    name: str,
+    n_classes: int,
+    seed: int = 0,
+    n_estimators: int = 500,
+    n_jobs: int = 4,
+    device: str = "cpu",
+):
     if name == "dummy":
         from sklearn.dummy import DummyClassifier
         return DummyClassifier(strategy="most_frequent", random_state=seed)
@@ -160,6 +211,7 @@ def build_model(name: str, n_classes: int, seed: int = 0, n_estimators: int = 50
         return XGBClassifier(
             n_estimators=n_estimators,
             tree_method="hist",
+            device=device,
             n_jobs=n_jobs,
             random_state=seed,
             eval_metric="mlogloss",
@@ -172,6 +224,7 @@ def build_model(name: str, n_classes: int, seed: int = 0, n_estimators: int = 50
             verbose=False,
             allow_writing_files=False,
             thread_count=n_jobs,
+            task_type="GPU" if device == "cuda" else "CPU",
         )
     if name == "tabpfn":
         import json
@@ -216,10 +269,19 @@ def build_model(name: str, n_classes: int, seed: int = 0, n_estimators: int = 50
                 "TabPFNClassifier().fit(np.random.randn(10,4), np.random.randint(0,2,10))\"\n"
                 "Paste your API key from https://ux.priorlabs.ai/account when prompted."
             )
-        return TabPFNClassifier(
+        base = TabPFNClassifier(
             random_state=seed,
             ignore_pretraining_limits=True,
         )
+        # TabPFN natively supports up to 10 classes; beyond that, wrap with the
+        # ManyClassClassifier output-coding extension.
+        # https://docs.priorlabs.ai/extensions/many-class
+        if n_classes > 10:
+            from tabpfn_extensions.many_class import ManyClassClassifier
+            # alphabet_size = TabPFN's native class limit; current API requires
+            # passing it explicitly when the base estimator doesn't expose a limit.
+            return ManyClassClassifier(base, alphabet_size=10, random_state=seed)
+        return base
     if name == "tabicl":
         from tabicl import TabICLClassifier
         return TabICLClassifier(random_state=seed)
@@ -237,6 +299,7 @@ def run_model(
     wandb_mode: str,
     n_estimators: int,
     n_jobs: int,
+    device: str,
 ) -> dict:
     import wandb
 
@@ -272,6 +335,7 @@ def run_model(
             "seed": seed,
             "n_estimators": n_estimators,
             "n_jobs": n_jobs,
+            "device": device,
         },
     )
 
@@ -279,7 +343,7 @@ def run_model(
     try:
         model = build_model(
             name, n_classes=n_classes, seed=seed,
-            n_estimators=n_estimators, n_jobs=n_jobs,
+            n_estimators=n_estimators, n_jobs=n_jobs, device=device,
         )
         y_pred, train_time, val_time, mem_stats = fit_predict(
             model, Xt, yt, Xv, predict_chunk_size=predict_chunk_size
@@ -345,6 +409,13 @@ def main():
         help="Parallel workers for RF/XGBoost/CatBoost (default: half of CPU cores)",
     )
     parser.add_argument(
+        "--device",
+        default="auto",
+        choices=["auto", "cpu", "cuda"],
+        help="Device for GPU-capable models (xgboost, catboost). "
+             "'auto' picks cuda if torch sees a GPU, else cpu.",
+    )
+    parser.add_argument(
         "--max-train-rows",
         type=int,
         default=None,
@@ -357,6 +428,7 @@ def main():
         help="Cap validation rows (applies to all models).",
     )
     args = parser.parse_args()
+    device = resolve_device(args.device)
 
     print(f"Loading data from {DATA_DIR} ...")
     X_train, y_train_raw = load_split("train")
@@ -379,7 +451,7 @@ def main():
         f"  train: {X_train.shape}  val: {X_val.shape}  "
         f"features: {X_train.shape[1]}  classes: {n_classes}"
     )
-    print(f"  system: {os.cpu_count()} CPUs, {mem_total_gb:.1f} GB RAM, using n_jobs={args.n_jobs}")
+    print(f"  system: {os.cpu_count()} CPUs, {mem_total_gb:.1f} GB RAM, using n_jobs={args.n_jobs}, device={device}")
     print(f"  class distribution (train): {pd.Series(y_train).value_counts().to_dict()}")
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -392,7 +464,7 @@ def main():
         res = run_model(
             name, X_train, y_train, X_val, y_val,
             n_classes=n_classes, seed=args.seed, wandb_mode=args.wandb_mode,
-            n_estimators=args.n_estimators, n_jobs=args.n_jobs,
+            n_estimators=args.n_estimators, n_jobs=args.n_jobs, device=device,
         )
         results.append(res)
         summary = pd.DataFrame(results)
