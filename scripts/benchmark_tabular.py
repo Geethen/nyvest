@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import math
 import os
 import time
 import warnings
@@ -72,10 +73,35 @@ WANDB_PROJECT = "nyvest-tabular-benchmark"
 
 # Foundation models (TabPFN, TabICL) are trained in-context; cap the support
 # set to keep inference tractable and stay near their pretraining regime.
-# Inference memory is O(n_train x n_val) so keep both modest and chunk predict.
+# Inference memory is O(n_train x n_val). Keep validation modest and use larger
+# predict batches; tiny repeated predict calls can be disproportionately slow.
 FOUNDATION_MAX_TRAIN = 5_000
 FOUNDATION_MAX_VAL = 5_000
-FOUNDATION_PREDICT_CHUNK = 500
+FOUNDATION_PREDICT_CHUNK = 1_000
+
+
+def _resolve_tabpfn_model_version(version_name: str):
+    """Resolve tabpfn ModelVersion enum member by name across releases."""
+    try:
+        from tabpfn.constants import ModelVersion
+    except Exception:
+        try:
+            # Backward compatibility for older tabpfn import paths.
+            from tabpfn.model import ModelVersion
+        except Exception as e:
+            raise RuntimeError(
+                "Could not import tabpfn ModelVersion. Upgrade tabpfn to a "
+                "release that exposes create_default_for_version()."
+            ) from e
+
+    if hasattr(ModelVersion, version_name):
+        return getattr(ModelVersion, version_name)
+
+    available = [k for k in dir(ModelVersion) if k.isupper()]
+    raise RuntimeError(
+        f"Requested TabPFN version '{version_name}' is not available in the "
+        f"installed tabpfn package. Available: {available}"
+    )
 
 
 def load_split(name: str) -> tuple[pd.DataFrame, pd.Series]:
@@ -119,29 +145,66 @@ def _peak_rss_mb(proc):
     return getattr(mi, "peak_wset", mi.rss) / 1024**2
 
 
-def _predict_chunked(model, X_val, chunk_size):
+def _predict_chunked(model, X_val, chunk_size, show_progress=False, progress_label="predict"):
     if chunk_size is None or chunk_size >= len(X_val):
+        if show_progress:
+            print(f"  [progress] {progress_label}: single-batch predict on {len(X_val)} rows", flush=True)
         return model.predict(X_val)
+
     parts = []
-    for start in range(0, len(X_val), chunk_size):
+    total = len(X_val)
+    n_chunks = (total + chunk_size - 1) // chunk_size
+    t0 = time.perf_counter()
+    for chunk_idx, start in enumerate(range(0, total, chunk_size), start=1):
         X_chunk = X_val.iloc[start:start + chunk_size] if hasattr(X_val, "iloc") else X_val[start:start + chunk_size]
         parts.append(model.predict(X_chunk))
+        if show_progress:
+            done = min(start + chunk_size, total)
+            elapsed = time.perf_counter() - t0
+            rate = done / elapsed if elapsed > 0 else 0.0
+            eta = (total - done) / rate if rate > 0 else float("inf")
+            eta_str = f"{eta:.1f}s" if math.isfinite(eta) else "n/a"
+            print(
+                f"  [progress] {progress_label}: chunk {chunk_idx}/{n_chunks} "
+                f"rows {done}/{total} elapsed {elapsed:.1f}s eta {eta_str}",
+                flush=True,
+            )
         gc.collect()
     return np.concatenate(parts)
 
 
-def fit_predict(model, X_train, y_train, X_val, predict_chunk_size=None):
+def fit_predict(
+    model,
+    X_train,
+    y_train,
+    X_val,
+    predict_chunk_size=None,
+    show_progress=False,
+    progress_label="model",
+):
     proc = psutil.Process()
     rss_start = proc.memory_info().rss / 1024**2
 
     t0 = time.perf_counter()
+    if show_progress:
+        print(f"  [progress] {progress_label}: fit started", flush=True)
     model.fit(X_train, y_train)
     train_time = time.perf_counter() - t0
+    if show_progress:
+        print(f"  [progress] {progress_label}: fit finished in {train_time:.2f}s", flush=True)
     rss_after_fit = proc.memory_info().rss / 1024**2
 
     t0 = time.perf_counter()
-    y_pred = _predict_chunked(model, X_val, predict_chunk_size)
+    y_pred = _predict_chunked(
+        model,
+        X_val,
+        predict_chunk_size,
+        show_progress=show_progress,
+        progress_label=f"{progress_label} predict",
+    )
     val_time = time.perf_counter() - t0
+    if show_progress:
+        print(f"  [progress] {progress_label}: predict finished in {val_time:.2f}s", flush=True)
     rss_after_pred = proc.memory_info().rss / 1024**2
     peak_rss = _peak_rss_mb(proc)
 
@@ -226,7 +289,7 @@ def build_model(
             thread_count=n_jobs,
             task_type="GPU" if device == "cuda" else "CPU",
         )
-    if name == "tabpfn":
+    if name in {"tabpfn", "tabpfn_v26", "tabpfn_v3"}:
         import json
         from tabpfn import TabPFNClassifier
         # TabPFN stores an install state file; user_id != null means authed.
@@ -269,10 +332,26 @@ def build_model(
                 "TabPFNClassifier().fit(np.random.randn(10,4), np.random.randint(0,2,10))\"\n"
                 "Paste your API key from https://ux.priorlabs.ai/account when prompted."
             )
-        base = TabPFNClassifier(
-            random_state=seed,
-            ignore_pretraining_limits=True,
-        )
+        if name in {"tabpfn_v26", "tabpfn_v3"}:
+            # Prefer explicit V3 when present. If unavailable but V2_6 exists,
+            # use that as the next-best explicit modern default.
+            if name == "tabpfn_v3":
+                try:
+                    version = _resolve_tabpfn_model_version("V3")
+                except RuntimeError:
+                    version = _resolve_tabpfn_model_version("V2_6")
+            else:
+                version = _resolve_tabpfn_model_version("V2_6")
+            base = TabPFNClassifier.create_default_for_version(
+                version,
+                random_state=seed,
+                ignore_pretraining_limits=True,
+            )
+        else:
+            base = TabPFNClassifier(
+                random_state=seed,
+                ignore_pretraining_limits=True,
+            )
         # TabPFN natively supports up to 10 classes; beyond that, wrap with the
         # ManyClassClassifier output-coding extension.
         # https://docs.priorlabs.ai/extensions/many-class
@@ -300,18 +379,23 @@ def run_model(
     n_estimators: int,
     n_jobs: int,
     device: str,
+    foundation_max_train: int,
+    foundation_max_val: int,
+    show_progress: bool,
 ) -> dict:
     import wandb
 
-    is_foundation = name in {"tabpfn", "tabicl"}
+    is_foundation = name in {"tabpfn", "tabpfn_v26", "tabpfn_v3", "tabicl"}
     if is_foundation:
-        Xt, yt = subsample(X_train, y_train, FOUNDATION_MAX_TRAIN, seed)
-        Xv, yv = subsample(X_val, y_val, FOUNDATION_MAX_VAL, seed)
+        Xt, yt = subsample(X_train, y_train, foundation_max_train, seed)
+        Xv, yv = subsample(X_val, y_val, foundation_max_val, seed)
         predict_chunk_size = FOUNDATION_PREDICT_CHUNK
+        model_progress = show_progress
     else:
         Xt, yt = X_train, y_train
         Xv, yv = X_val, y_val
         predict_chunk_size = None
+        model_progress = False
 
     mem = psutil.virtual_memory()
     mem_available_gb = mem.available / 1024**3
@@ -346,7 +430,13 @@ def run_model(
             n_estimators=n_estimators, n_jobs=n_jobs, device=device,
         )
         y_pred, train_time, val_time, mem_stats = fit_predict(
-            model, Xt, yt, Xv, predict_chunk_size=predict_chunk_size
+            model,
+            Xt,
+            yt,
+            Xv,
+            predict_chunk_size=predict_chunk_size,
+            show_progress=model_progress,
+            progress_label=name,
         )
         f1 = f1_score(yv, y_pred, average="macro")
         bal_acc = balanced_accuracy_score(yv, y_pred)
@@ -387,8 +477,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--models",
-        default="dummy,linear,rf,xgboost,lightgbm,catboost,tabpfn,tabicl",
-        help="Comma-separated subset of: dummy,linear,rf,xgboost,lightgbm,catboost,tabpfn,tabicl",
+        default="dummy,linear,rf,xgboost,lightgbm,catboost,tabpfn,tabpfn_v26,tabpfn_v3,tabicl",
+        help="Comma-separated subset of: dummy,linear,rf,xgboost,lightgbm,catboost,tabpfn,tabpfn_v26,tabpfn_v3,tabicl",
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
@@ -426,6 +516,24 @@ def main():
         type=int,
         default=None,
         help="Cap validation rows (applies to all models).",
+    )
+    parser.add_argument(
+        "--foundation-max-train",
+        type=int,
+        default=FOUNDATION_MAX_TRAIN,
+        help="Cap train rows for foundation models (tabpfn/tabpfn_v26/tabpfn_v3/tabicl).",
+    )
+    parser.add_argument(
+        "--foundation-max-val",
+        type=int,
+        default=FOUNDATION_MAX_VAL,
+        help="Cap validation rows for foundation models (tabpfn/tabpfn_v26/tabpfn_v3/tabicl).",
+    )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Show progress logs for long foundation-model fit/predict stages (default: enabled).",
     )
     args = parser.parse_args()
     device = resolve_device(args.device)
@@ -465,6 +573,9 @@ def main():
             name, X_train, y_train, X_val, y_val,
             n_classes=n_classes, seed=args.seed, wandb_mode=args.wandb_mode,
             n_estimators=args.n_estimators, n_jobs=args.n_jobs, device=device,
+            foundation_max_train=args.foundation_max_train,
+            foundation_max_val=args.foundation_max_val,
+            show_progress=args.progress,
         )
         results.append(res)
         summary = pd.DataFrame(results)
