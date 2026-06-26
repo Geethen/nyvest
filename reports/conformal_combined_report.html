@@ -1,0 +1,126 @@
+<!DOCTYPE html><html><head>
+<meta charset='utf-8'>
+<title>Conformal Prediction — Combined Megan + FSCS</title>
+<style>
+body{font-family:Arial,sans-serif;margin:20px;font-size:13px;}
+h1{color:#333;}
+h2{color:#555;border-bottom:1px solid #ccc;padding-bottom:4px;}
+h3{color:#666;}
+table{border-collapse:collapse;margin-bottom:20px;}
+th,td{border:1px solid #ccc;padding:4px 8px;text-align:right;}
+th{background:#e8e8e8;text-align:center;}
+.left{text-align:left;}
+.section{margin-top:30px;}
+</style></head><body>
+<h1>Conformal Prediction: Combined Megan + FSCS (Level-1 Taxonomy)</h1>
+<div class='section'><h2>1. Dataset Summary</h2>
+<p>Combined dataset: <b>120,396</b> train / <b>30,573</b> val / <b>21,338</b> test rows. Megan test: 9,470 &nbsp; FSCS test: 11,868. Shared classes: 9 (Coastal and Marine excluded).</p>
+<table>
+<tr><th class='left'>Class</th><th>Megan (train+val+test)</th><th>FSCS (train+val+test)</th><th>Combined (train+val+test)</th></tr>
+<tr><td class='left'>Cropland</td><td>5,000</td><td>7,063</td><td>12,063</td></tr>
+<tr><td class='left'>Forest</td><td>19,866</td><td>10,945</td><td>30,811</td></tr>
+<tr><td class='left'>Grassland</td><td>4,998</td><td>4,739</td><td>9,737</td></tr>
+<tr><td class='left'>Heathland and shrub</td><td>4,789</td><td>12,771</td><td>17,560</td></tr>
+<tr><td class='left'>Inland wetlands</td><td>4,949</td><td>6,538</td><td>11,487</td></tr>
+<tr><td class='left'>Lakes and reservoirs</td><td>7,987</td><td>21,734</td><td>29,721</td></tr>
+<tr><td class='left'>Rivers and canals</td><td>8,007</td><td>0</td><td>8,007</td></tr>
+<tr><td class='left'>Settlements</td><td>29,956</td><td>14,218</td><td>44,174</td></tr>
+<tr><td class='left'>Sparsely vegetated</td><td>7,636</td><td>1,111</td><td>8,747</td></tr>
+</table></div>
+<div class='section'><h2>2. CP Method Results by Alpha</h2>
+<h3>Alpha = 0.05  (target coverage ≥ 0.95)</h3>
+<table>
+<tr><th class='left'>Method</th><th>Coverage</th><th>Avg Set Size</th><th>Median Set Size</th><th>% Singleton</th><th>% Empty</th><th>Megan Cov</th><th>FSCS Cov</th><th>Megan Avg Size</th><th>FSCS Avg Size</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.061</td><td>0.06</td><td>0.0</td><td>0.061</td><td>0.939</td><td style='background:#ffcdd2'>0.028</td><td style='background:#ffcdd2'>0.087</td><td>0.03</td><td>0.09</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.952</td><td>2.00</td><td>2.0</td><td>0.482</td><td>0.006</td><td style='background:#c8e6c9'>0.948</td><td style='background:#c8e6c9'>0.954</td><td>1.80</td><td>2.17</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.951</td><td>1.89</td><td>2.0</td><td>0.458</td><td>0.000</td><td style='background:#c8e6c9'>0.950</td><td style='background:#c8e6c9'>0.951</td><td>1.72</td><td>2.02</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.950</td><td>2.17</td><td>2.0</td><td>0.251</td><td>0.000</td><td style='background:#c8e6c9'>0.952</td><td style='background:#c8e6c9'>0.949</td><td>2.02</td><td>2.28</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#c8e6c9'>0.965</td><td>2.67</td><td>3.0</td><td>0.000</td><td>0.000</td><td style='background:#c8e6c9'>0.969</td><td style='background:#c8e6c9'>0.961</td><td>2.64</td><td>2.70</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.949</td><td>2.01</td><td>2.0</td><td>0.410</td><td>0.007</td><td style='background:#c8e6c9'>0.953</td><td style='background:#c8e6c9'>0.946</td><td>1.86</td><td>2.13</td></tr>
+</table>
+<h3>Alpha = 0.1  (target coverage ≥ 0.90)</h3>
+<table>
+<tr><th class='left'>Method</th><th>Coverage</th><th>Avg Set Size</th><th>Median Set Size</th><th>% Singleton</th><th>% Empty</th><th>Megan Cov</th><th>FSCS Cov</th><th>Megan Avg Size</th><th>FSCS Avg Size</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.116</td><td>0.12</td><td>0.0</td><td>0.116</td><td>0.884</td><td style='background:#ffcdd2'>0.063</td><td style='background:#ffcdd2'>0.159</td><td>0.06</td><td>0.16</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.902</td><td>1.59</td><td>1.0</td><td>0.587</td><td>0.021</td><td style='background:#c8e6c9'>0.901</td><td style='background:#c8e6c9'>0.902</td><td>1.44</td><td>1.70</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.900</td><td>1.53</td><td>1.0</td><td>0.596</td><td>0.017</td><td style='background:#c8e6c9'>0.902</td><td style='background:#c8e6c9'>0.899</td><td>1.40</td><td>1.64</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.900</td><td>1.55</td><td>1.0</td><td>0.639</td><td>0.012</td><td style='background:#c8e6c9'>0.902</td><td style='background:#c8e6c9'>0.899</td><td>1.41</td><td>1.66</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#c8e6c9'>0.918</td><td>1.82</td><td>2.0</td><td>0.179</td><td>0.000</td><td style='background:#c8e6c9'>0.929</td><td style='background:#c8e6c9'>0.909</td><td>1.85</td><td>1.80</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.899</td><td>1.60</td><td>1.0</td><td>0.561</td><td>0.027</td><td style='background:#c8e6c9'>0.902</td><td style='background:#c8e6c9'>0.896</td><td>1.46</td><td>1.71</td></tr>
+</table>
+<h3>Alpha = 0.2  (target coverage ≥ 0.80)</h3>
+<table>
+<tr><th class='left'>Method</th><th>Coverage</th><th>Avg Set Size</th><th>Median Set Size</th><th>% Singleton</th><th>% Empty</th><th>Megan Cov</th><th>FSCS Cov</th><th>Megan Avg Size</th><th>FSCS Avg Size</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.208</td><td>0.21</td><td>0.0</td><td>0.208</td><td>0.792</td><td style='background:#ffcdd2'>0.198</td><td style='background:#ffcdd2'>0.216</td><td>0.20</td><td>0.22</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.800</td><td>1.22</td><td>1.0</td><td>0.692</td><td>0.074</td><td style='background:#c8e6c9'>0.805</td><td style='background:#c8e6c9'>0.797</td><td>1.13</td><td>1.28</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.800</td><td>1.20</td><td>1.0</td><td>0.702</td><td>0.071</td><td style='background:#c8e6c9'>0.806</td><td style='background:#c8e6c9'>0.795</td><td>1.13</td><td>1.26</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.800</td><td>1.25</td><td>1.0</td><td>0.684</td><td>0.083</td><td style='background:#c8e6c9'>0.801</td><td style='background:#c8e6c9'>0.799</td><td>1.15</td><td>1.32</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#c8e6c9'>0.802</td><td>1.02</td><td>1.0</td><td>0.981</td><td>0.000</td><td style='background:#c8e6c9'>0.834</td><td style='background:#fff9c4'>0.776</td><td>1.01</td><td>1.02</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.801</td><td>1.24</td><td>1.0</td><td>0.667</td><td>0.079</td><td style='background:#c8e6c9'>0.805</td><td style='background:#c8e6c9'>0.797</td><td>1.15</td><td>1.31</td></tr>
+</table>
+</div>
+<div class='section'><h2>3. Per-Class Coverage Heatmap</h2>
+<h3>Alpha = 0.05</h3>
+<table>
+<tr><th class='left'>Method</th><th>Cropland</th><th>Forest</th><th>Grassland</th><th>Heathland and shrub</th><th>Inland wetlands</th><th>Lakes and reservoirs</th><th>Rivers and canals</th><th>Settlements</th><th>Sparsely vegetated</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.27</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.01</td><td style='background:#ffcdd2'>0.11</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.95</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.93</td><td style='background:#fff9c4'>0.93</td><td style='background:#fff9c4'>0.92</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.90</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.91</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#fff9c4'>0.93</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.91</td><td style='background:#fff9c4'>0.93</td><td style='background:#fff9c4'>0.91</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.90</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.91</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#fff9c4'>0.93</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.90</td><td style='background:#fff9c4'>0.93</td><td style='background:#fff9c4'>0.91</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.90</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.91</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#fff9c4'>0.94</td><td style='background:#c8e6c9'>0.98</td><td style='background:#fff9c4'>0.93</td><td style='background:#c8e6c9'>0.96</td><td style='background:#fff9c4'>0.93</td><td style='background:#c8e6c9'>0.98</td><td style='background:#c8e6c9'>0.95</td><td style='background:#c8e6c9'>0.98</td><td style='background:#fff9c4'>0.93</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.94</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.93</td><td style='background:#fff9c4'>0.93</td><td style='background:#fff9c4'>0.92</td><td style='background:#c8e6c9'>0.94</td><td style='background:#ffcdd2'>0.89</td><td style='background:#c8e6c9'>0.97</td><td style='background:#fff9c4'>0.91</td></tr>
+</table>
+<h3>Alpha = 0.1</h3>
+<table>
+<tr><th class='left'>Method</th><th>Cropland</th><th>Forest</th><th>Grassland</th><th>Heathland and shrub</th><th>Inland wetlands</th><th>Lakes and reservoirs</th><th>Rivers and canals</th><th>Settlements</th><th>Sparsely vegetated</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.51</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.03</td><td style='background:#ffcdd2'>0.24</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.89</td><td style='background:#c8e6c9'>0.92</td><td style='background:#fff9c4'>0.86</td><td style='background:#fff9c4'>0.86</td><td style='background:#fff9c4'>0.86</td><td style='background:#c8e6c9'>0.93</td><td style='background:#ffcdd2'>0.85</td><td style='background:#c8e6c9'>0.92</td><td style='background:#fff9c4'>0.85</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#fff9c4'>0.89</td><td style='background:#c8e6c9'>0.92</td><td style='background:#fff9c4'>0.85</td><td style='background:#fff9c4'>0.85</td><td style='background:#fff9c4'>0.85</td><td style='background:#c8e6c9'>0.93</td><td style='background:#ffcdd2'>0.84</td><td style='background:#c8e6c9'>0.93</td><td style='background:#fff9c4'>0.86</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#fff9c4'>0.89</td><td style='background:#c8e6c9'>0.93</td><td style='background:#ffcdd2'>0.82</td><td style='background:#fff9c4'>0.85</td><td style='background:#ffcdd2'>0.84</td><td style='background:#c8e6c9'>0.94</td><td style='background:#ffcdd2'>0.83</td><td style='background:#c8e6c9'>0.93</td><td style='background:#fff9c4'>0.86</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#fff9c4'>0.88</td><td style='background:#c8e6c9'>0.93</td><td style='background:#ffcdd2'>0.82</td><td style='background:#c8e6c9'>0.89</td><td style='background:#fff9c4'>0.86</td><td style='background:#c8e6c9'>0.96</td><td style='background:#ffcdd2'>0.85</td><td style='background:#c8e6c9'>0.95</td><td style='background:#c8e6c9'>0.90</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.90</td><td style='background:#c8e6c9'>0.94</td><td style='background:#fff9c4'>0.86</td><td style='background:#fff9c4'>0.86</td><td style='background:#fff9c4'>0.88</td><td style='background:#c8e6c9'>0.89</td><td style='background:#fff9c4'>0.85</td><td style='background:#c8e6c9'>0.92</td><td style='background:#fff9c4'>0.86</td></tr>
+</table>
+<h3>Alpha = 0.2</h3>
+<table>
+<tr><th class='left'>Method</th><th>Cropland</th><th>Forest</th><th>Grassland</th><th>Heathland and shrub</th><th>Inland wetlands</th><th>Lakes and reservoirs</th><th>Rivers and canals</th><th>Settlements</th><th>Sparsely vegetated</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.02</td><td style='background:#ffcdd2'>0.02</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.00</td><td style='background:#ffcdd2'>0.72</td><td style='background:#ffcdd2'>0.02</td><td style='background:#ffcdd2'>0.17</td><td style='background:#ffcdd2'>0.49</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.79</td><td style='background:#c8e6c9'>0.83</td><td style='background:#ffcdd2'>0.72</td><td style='background:#ffcdd2'>0.75</td><td style='background:#ffcdd2'>0.74</td><td style='background:#c8e6c9'>0.84</td><td style='background:#ffcdd2'>0.73</td><td style='background:#c8e6c9'>0.83</td><td style='background:#fff9c4'>0.76</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.79</td><td style='background:#c8e6c9'>0.83</td><td style='background:#ffcdd2'>0.72</td><td style='background:#ffcdd2'>0.74</td><td style='background:#ffcdd2'>0.74</td><td style='background:#c8e6c9'>0.84</td><td style='background:#ffcdd2'>0.73</td><td style='background:#c8e6c9'>0.83</td><td style='background:#fff9c4'>0.76</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.79</td><td style='background:#c8e6c9'>0.83</td><td style='background:#ffcdd2'>0.71</td><td style='background:#fff9c4'>0.76</td><td style='background:#fff9c4'>0.75</td><td style='background:#c8e6c9'>0.83</td><td style='background:#ffcdd2'>0.72</td><td style='background:#c8e6c9'>0.83</td><td style='background:#fff9c4'>0.76</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#fff9c4'>0.75</td><td style='background:#c8e6c9'>0.82</td><td style='background:#ffcdd2'>0.57</td><td style='background:#ffcdd2'>0.66</td><td style='background:#ffcdd2'>0.63</td><td style='background:#c8e6c9'>0.94</td><td style='background:#ffcdd2'>0.68</td><td style='background:#c8e6c9'>0.88</td><td style='background:#c8e6c9'>0.82</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.81</td><td style='background:#c8e6c9'>0.86</td><td style='background:#ffcdd2'>0.74</td><td style='background:#fff9c4'>0.77</td><td style='background:#fff9c4'>0.77</td><td style='background:#c8e6c9'>0.80</td><td style='background:#ffcdd2'>0.73</td><td style='background:#c8e6c9'>0.82</td><td style='background:#fff9c4'>0.77</td></tr>
+</table>
+</div>
+<div class='section'><h2>4. Megan vs FSCS Coverage Breakdown</h2>
+<h3>Alpha = 0.05</h3>
+<table>
+<tr><th class='left'>Method</th><th>Megan Coverage</th><th>FSCS Coverage</th><th>Megan Avg Size</th><th>FSCS Avg Size</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.028</td><td style='background:#ffcdd2'>0.087</td><td>0.03</td><td>0.09</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.948</td><td style='background:#c8e6c9'>0.954</td><td>1.80</td><td>2.17</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.950</td><td style='background:#c8e6c9'>0.951</td><td>1.72</td><td>2.02</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.952</td><td style='background:#c8e6c9'>0.949</td><td>2.02</td><td>2.28</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#c8e6c9'>0.969</td><td style='background:#c8e6c9'>0.961</td><td>2.64</td><td>2.70</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.953</td><td style='background:#c8e6c9'>0.946</td><td>1.86</td><td>2.13</td></tr>
+</table>
+<h3>Alpha = 0.1</h3>
+<table>
+<tr><th class='left'>Method</th><th>Megan Coverage</th><th>FSCS Coverage</th><th>Megan Avg Size</th><th>FSCS Avg Size</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.063</td><td style='background:#ffcdd2'>0.159</td><td>0.06</td><td>0.16</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.901</td><td style='background:#c8e6c9'>0.902</td><td>1.44</td><td>1.70</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.902</td><td style='background:#c8e6c9'>0.899</td><td>1.40</td><td>1.64</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.902</td><td style='background:#c8e6c9'>0.899</td><td>1.41</td><td>1.66</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#c8e6c9'>0.929</td><td style='background:#c8e6c9'>0.909</td><td>1.85</td><td>1.80</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.902</td><td style='background:#c8e6c9'>0.896</td><td>1.46</td><td>1.71</td></tr>
+</table>
+<h3>Alpha = 0.2</h3>
+<table>
+<tr><th class='left'>Method</th><th>Megan Coverage</th><th>FSCS Coverage</th><th>Megan Avg Size</th><th>FSCS Avg Size</th></tr>
+<tr><td class='left'>THR</td><td style='background:#ffcdd2'>0.198</td><td style='background:#ffcdd2'>0.216</td><td>0.20</td><td>0.22</td></tr>
+<tr><td class='left'>APS</td><td style='background:#c8e6c9'>0.805</td><td style='background:#c8e6c9'>0.797</td><td>1.13</td><td>1.28</td></tr>
+<tr><td class='left'>RAPS</td><td style='background:#c8e6c9'>0.806</td><td style='background:#c8e6c9'>0.795</td><td>1.13</td><td>1.26</td></tr>
+<tr><td class='left'>SAPS</td><td style='background:#c8e6c9'>0.801</td><td style='background:#c8e6c9'>0.799</td><td>1.15</td><td>1.32</td></tr>
+<tr><td class='left'>RANK</td><td style='background:#c8e6c9'>0.834</td><td style='background:#fff9c4'>0.776</td><td>1.01</td><td>1.02</td></tr>
+<tr><td class='left'>MondRaps</td><td style='background:#c8e6c9'>0.805</td><td style='background:#c8e6c9'>0.797</td><td>1.15</td><td>1.31</td></tr>
+</table>
+</div>
+</body></html>

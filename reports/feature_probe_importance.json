@@ -1,0 +1,282 @@
+[
+  {
+    "feature": "elevation",
+    "importance": 0.0211
+  },
+  {
+    "feature": "tri",
+    "importance": 0.0202
+  },
+  {
+    "feature": "tch",
+    "importance": 0.0156
+  },
+  {
+    "feature": "A43",
+    "importance": 0.0112
+  },
+  {
+    "feature": "A01",
+    "importance": 0.0105
+  },
+  {
+    "feature": "A17",
+    "importance": 0.0104
+  },
+  {
+    "feature": "A58",
+    "importance": 0.0095
+  },
+  {
+    "feature": "A24",
+    "importance": 0.0094
+  },
+  {
+    "feature": "A36",
+    "importance": 0.0079
+  },
+  {
+    "feature": "A38",
+    "importance": 0.0069
+  },
+  {
+    "feature": "A61",
+    "importance": 0.0063
+  },
+  {
+    "feature": "A60",
+    "importance": 0.006
+  },
+  {
+    "feature": "A07",
+    "importance": 0.006
+  },
+  {
+    "feature": "A27",
+    "importance": 0.0055
+  },
+  {
+    "feature": "A14",
+    "importance": 0.0048
+  },
+  {
+    "feature": "A30",
+    "importance": 0.0047
+  },
+  {
+    "feature": "A48",
+    "importance": 0.0043
+  },
+  {
+    "feature": "A25",
+    "importance": 0.0034
+  },
+  {
+    "feature": "A54",
+    "importance": 0.0029
+  },
+  {
+    "feature": "slope",
+    "importance": 0.0028
+  },
+  {
+    "feature": "A02",
+    "importance": 0.0023
+  },
+  {
+    "feature": "A41",
+    "importance": 0.0022
+  },
+  {
+    "feature": "A16",
+    "importance": 0.0021
+  },
+  {
+    "feature": "A59",
+    "importance": 0.0021
+  },
+  {
+    "feature": "A08",
+    "importance": 0.002
+  },
+  {
+    "feature": "A56",
+    "importance": 0.002
+  },
+  {
+    "feature": "A09",
+    "importance": 0.0019
+  },
+  {
+    "feature": "A62",
+    "importance": 0.0018
+  },
+  {
+    "feature": "A34",
+    "importance": 0.0018
+  },
+  {
+    "feature": "A50",
+    "importance": 0.0017
+  },
+  {
+    "feature": "A63",
+    "importance": 0.0017
+  },
+  {
+    "feature": "A20",
+    "importance": 0.0017
+  },
+  {
+    "feature": "A05",
+    "importance": 0.0016
+  },
+  {
+    "feature": "A39",
+    "importance": 0.0016
+  },
+  {
+    "feature": "A44",
+    "importance": 0.0014
+  },
+  {
+    "feature": "A40",
+    "importance": 0.0014
+  },
+  {
+    "feature": "A11",
+    "importance": 0.0014
+  },
+  {
+    "feature": "A03",
+    "importance": 0.0013
+  },
+  {
+    "feature": "A55",
+    "importance": 0.0013
+  },
+  {
+    "feature": "A45",
+    "importance": 0.0012
+  },
+  {
+    "feature": "A15",
+    "importance": 0.0012
+  },
+  {
+    "feature": "A33",
+    "importance": 0.0012
+  },
+  {
+    "feature": "A52",
+    "importance": 0.0012
+  },
+  {
+    "feature": "A32",
+    "importance": 0.0011
+  },
+  {
+    "feature": "A04",
+    "importance": 0.0011
+  },
+  {
+    "feature": "A47",
+    "importance": 0.0008
+  },
+  {
+    "feature": "A49",
+    "importance": 0.0008
+  },
+  {
+    "feature": "A31",
+    "importance": 0.0007
+  },
+  {
+    "feature": "A12",
+    "importance": 0.0005
+  },
+  {
+    "feature": "A37",
+    "importance": 0.0005
+  },
+  {
+    "feature": "A51",
+    "importance": 0.0005
+  },
+  {
+    "feature": "A00",
+    "importance": 0.0005
+  },
+  {
+    "feature": "A46",
+    "importance": 0.0004
+  },
+  {
+    "feature": "A42",
+    "importance": 0.0003
+  },
+  {
+    "feature": "A10",
+    "importance": 0.0003
+  },
+  {
+    "feature": "A19",
+    "importance": 0.0003
+  },
+  {
+    "feature": "A18",
+    "importance": 0.0002
+  },
+  {
+    "feature": "A21",
+    "importance": 0.0002
+  },
+  {
+    "feature": "A06",
+    "importance": 0.0002
+  },
+  {
+    "feature": "A13",
+    "importance": 0.0002
+  },
+  {
+    "feature": "A35",
+    "importance": 0.0002
+  },
+  {
+    "feature": "A57",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A28",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A26",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A23",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A53",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A22",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A29",
+    "importance": 0.0001
+  },
+  {
+    "feature": "aspect_sin",
+    "importance": -0.0001
+  },
+  {
+    "feature": "aspect_cos",
+    "importance": -0.0001
+  }
+]

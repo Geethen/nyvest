@@ -37,7 +37,7 @@ import json
 import math
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout, as_completed
 from threading import Lock
 
 import duckdb
@@ -61,9 +61,12 @@ CCDC_END = 2020                      # stability window end (inclusive)
 CCDC_PROB = 0.99                     # changeProb threshold
 SEED = 42
 
-MAX_WORKERS = 20                     # kMeans+stratifiedSample is heavier than reduceRegions
+MAX_WORKERS = 10                     # kMeans+stratifiedSample is heavier than reduceRegions
 TILE_SCALE = 4                       # bump default; clusterer + sampling is memory-hungry
 TILE_SCALES = (4, 8, 16)             # escalation ladder for retries
+SHARD_TIMEOUT_S = 180                # abandon a shard if computeFeatures hangs past this
+FLUSH_EVERY_N_SHARDS = 200           # periodic parquet flush so a hang doesn't lose the buffer
+KMEANS_NUM_PIXELS = 5000             # pixels sampled to train kMeans per shard
 
 # Bounding box of Rogaland + Vestland + Møre og Romsdal in EPSG:25832,
 # matching the extent of the grunnkart_nyvest_10m raster. Cells whose
@@ -173,7 +176,7 @@ def sample_cell_class(image, grunnkart, stable_mask, cell_geom,
     training = masked.sample(
         region=cell_geom,
         scale=SCALE,
-        numPixels=5000,
+        numPixels=KMEANS_NUM_PIXELS,
         seed=SEED,
         tileScale=tile_scale,
         dropNulls=True,
@@ -209,6 +212,15 @@ _EMPTY_SHARD_MARKERS = (
     "No valid training data",
 )
 
+# Persistent solo executor for per-shard computeFeatures timeouts. Daemon
+# threads + no __exit__ means a stuck GEE call is *abandoned* (it keeps
+# burning on its own thread but cannot block the main pool). Workers are
+# expendable; we just spawn another. Sized larger than MAX_WORKERS so a
+# zombie shard's thread doesn't starve the next live shard's timeout.
+_solo_executor = ThreadPoolExecutor(
+    max_workers=MAX_WORKERS * 4,
+    thread_name_prefix="fscs-solo")
+
 
 def process_shard(cell_id, cell_geom, class_code, year, image, grunnkart,
                   stable_mask, k, db_conn, lock, tile_scale=TILE_SCALE,
@@ -223,11 +235,19 @@ def process_shard(cell_id, cell_geom, class_code, year, image, grunnkart,
         "lat": f.geometry().coordinates().get(1),
     }))
 
-    try:
-        df = ee.data.computeFeatures({
+    def _compute():
+        return ee.data.computeFeatures({
             "expression": fc,
             "fileFormat": "PANDAS_DATAFRAME",
         })
+
+    fut = _solo_executor.submit(_compute)
+    try:
+        df = fut.result(timeout=SHARD_TIMEOUT_S)
+    except FutTimeout:
+        fut.cancel()   # best-effort; underlying gRPC call may keep running
+        raise TimeoutError(
+            f"computeFeatures exceeded {SHARD_TIMEOUT_S}s")
     except Exception as e:
         msg = str(e)
         if any(m in msg for m in _EMPTY_SHARD_MARKERS):
@@ -260,7 +280,9 @@ def process_shard(cell_id, cell_geom, class_code, year, image, grunnkart,
 def process_shard_with_escalation(cell_id, cell_geom, class_code, year,
                                   image, grunnkart, stable_mask, k,
                                   db_conn, lock, schema_checked,
-                                  tile_scales=TILE_SCALES, backoff=2):
+                                  tile_scales=None, backoff=2):
+    if tile_scales is None:
+        tile_scales = TILE_SCALES   # read at call time so CLI override applies
     last_exc = None
     for attempt, ts in enumerate(tile_scales):
         try:
@@ -357,6 +379,22 @@ def run(year, grid_size_m, k_per_class, max_workers, output_path,
             json.dump({"done": sorted(processed),
                        "failed": sorted(failed)}, f)
 
+    def flush_to_parquet():
+        try:
+            n = db_conn.execute("SELECT count(*) FROM data").fetchone()[0]
+        except duckdb.CatalogException:
+            return 0
+        if n == 0:
+            return 0
+        tmp = output_path + ".tmp"
+        with lock:
+            db_conn.execute(
+                f"COPY data TO '{tmp}' (FORMAT PARQUET, COMPRESSION ZSTD)")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        os.rename(tmp, output_path)
+        return n
+
     todo = [s for s in shards if shard_key(s[0], s[2]) not in processed]
 
     successful = 0
@@ -372,6 +410,7 @@ def run(year, grid_size_m, k_per_class, max_workers, output_path,
             future_to_key[fut] = (cid, cls)
 
         with tqdm(total=len(todo), desc="FSCS shards", ncols=100) as pbar:
+            since_flush = 0
             for future in as_completed(future_to_key):
                 cid, cls = future_to_key[future]
                 key = shard_key(cid, cls)
@@ -385,6 +424,13 @@ def run(year, grid_size_m, k_per_class, max_workers, output_path,
                     if n:
                         tqdm.write(
                             f"    cell {cid} class {cls}: {n} rows")
+                    since_flush += 1
+                    if since_flush >= FLUSH_EVERY_N_SHARDS:
+                        rows = flush_to_parquet()
+                        if rows:
+                            tqdm.write(f"    [flush] {rows:,} rows -> "
+                                       f"{os.path.basename(output_path)}")
+                        since_flush = 0
                 except Exception as e:
                     failed.add(key)
                     save_checkpoint()
@@ -458,9 +504,31 @@ def main():
                         help=f"Parallel shard workers (default {MAX_WORKERS})")
     parser.add_argument("--output", default=default_output,
                         help="Output parquet path")
+    global SHARD_TIMEOUT_S, TILE_SCALES, KMEANS_NUM_PIXELS, _solo_executor
+    parser.add_argument("--shard_timeout", type=int, default=SHARD_TIMEOUT_S,
+                        help=f"Per-shard wall-clock timeout in seconds "
+                             f"(default {SHARD_TIMEOUT_S})")
+    parser.add_argument("--tile_scales", default=None,
+                        help="Comma-separated tileScale escalation ladder "
+                             "(default '4,8,16'). For retries on heavy "
+                             "shards try '16'.")
+    parser.add_argument("--num_pixels", type=int, default=KMEANS_NUM_PIXELS,
+                        help=f"Pixels sampled to train kMeans per shard "
+                             f"(default {KMEANS_NUM_PIXELS}). Drop to 2000 "
+                             f"for retry of heavy shards.")
     parser.add_argument("--test_mode", action="store_true",
                         help="Run just 2 cells × 2 classes for a smoke test")
     args = parser.parse_args()
+
+    SHARD_TIMEOUT_S = args.shard_timeout
+    KMEANS_NUM_PIXELS = args.num_pixels
+    if args.tile_scales:
+        TILE_SCALES = tuple(int(x) for x in args.tile_scales.split(","))
+    # Resize the solo-executor pool to match the new max_workers (4× buffer
+    # so abandoned threads cannot starve live ones).
+    _solo_executor = ThreadPoolExecutor(
+        max_workers=max(MAX_WORKERS, args.max_workers) * 4,
+        thread_name_prefix="fscs-solo")
 
     init_gee(args.project)
     run(year=args.year,

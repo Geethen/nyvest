@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scheme B all-years — best model (F1 0.714)</title>
+<style>
+  :root {
+    --bg: #fafbfc;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --accent: #0969da;
+    --good: #1f883d;
+    --warn: #9a6700;
+    --bad: #cf222e;
+    --row-alt: #f6f8fa;
+    --bar: #54aeff;
+    --bar-best: #1f883d;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  h1 { margin-top: 0; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-top: 36px; }
+  h3 { margin-top: 28px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+  pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  .meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 16px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 16px 0 24px;
+  }
+  .meta dt { font-weight: 600; color: var(--muted); }
+  .meta dd { margin: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    background: white;
+    margin: 12px 0 24px;
+    font-size: 0.92em;
+  }
+  th, td {
+    padding: 7px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+  }
+  th { background: #f6f8fa; text-align: right; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  tr:nth-child(even) td { background: var(--row-alt); }
+  .best { color: var(--good); font-weight: 600; }
+  .bar-wrap { background: #eaeef2; border-radius: 3px; height: 14px; min-width: 80px; position: relative; }
+  .bar { background: var(--bar); height: 100%; border-radius: 3px; }
+  .bar.best { background: var(--bar-best); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .callout {
+    background: white;
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .callout.good { border-left-color: var(--good); }
+  .callout.warn { border-left-color: var(--warn); }
+  .small { color: var(--muted); font-size: 0.9em; }
+  ul.takeaways li { margin: 6px 0; }
+  .tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #ddf4ff;
+    color: #0550ae;
+    font-size: 0.8em;
+    margin-right: 4px;
+  }
+  .num-good { color: var(--good); }
+  .num-bad  { color: var(--bad); }
+  .cm { border-collapse: collapse; font-size: 0.82em; }
+  .cm td, .cm th { text-align: center; padding: 6px 7px; border: 1px solid var(--border); min-width: 38px; }
+  .cm th { background: #f6f8fa; font-weight: 600; }
+  .cm th.corner { background: white; border: none; }
+  .cm td.rowlab, .cm th.rowlab { text-align: right; font-weight: 600; background: #f6f8fa; }
+  .cm .diag { outline: 2px solid var(--good); outline-offset: -2px; font-weight: 700; }
+  .cm-legend { font-size: 0.85em; color: var(--muted); margin: 4px 0 24px; }
+  .cm-wrap { overflow-x: auto; }
+  .lc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 12px 0 8px; }
+  .lc-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; text-align: center; }
+  .lc-card .v { font-size: 1.5em; font-weight: 700; color: var(--good); }
+  .lc-card .s { color: var(--muted); font-size: 0.85em; }
+  .lc-card.oom .v { color: var(--bad); }
+  footer { color: var(--muted); font-size: 0.85em; margin-top: 48px; }
+</style>
+</head>
+<body>
+
+<h1>Scheme B all-years — best model</h1>
+<p class="small">CC-APS conformal pseudo-labelling → TabICL stage-2 on the stable all-years AlphaEarth feature space, <strong>plus 3 lidar terrain features</strong> (elevation, ruggedness, canopy height). Macro-F1 <strong>0.7139</strong> under spatially-blocked 3-fold CV — the most accurate model on the nyvest land-cover task to date. Adding the lidar features lifted the previous AlphaEarth-only best (0.7074) by <strong>+0.0065</strong>, with the gains concentrated in the natural-vegetation classes.</p>
+
+<dl class="meta">
+  <dt>Pipeline script</dt><dd><code>common_ground/scripts/llto_schemeB_allyears.py</code></dd>
+  <dt>Best-config result</dt><dd><code>common_ground/reports/research/schemeB_allyears_results_perfold_fix_sup32k_lidar.json</code> (0.7139, lidar) — supersedes <code>…_sup32k.json</code> (0.7074, AlphaEarth-only)</dd>
+  <dt>Stable dataset</dt><dd><code>data/grunnkart_nyvest_fscs_stable_allyears_alphaearth.parquet</code> — 663,740 rows, years 2017–2025</dd>
+  <dt>Unstable pool</dt><dd><code>data/grunnkart_nyvest_fscs_unstable_alphaearth.parquet</code> — ~16.8k rows pseudo-labelled by the conformal gate</dd>
+  <dt>Features</dt><dd>64 AlphaEarth embedding bands (<code>A00..A63</code>) + 3 lidar terrain features (<code>elevation</code>, <code>tri</code>, <code>tch</code>) joined by exact (lon, lat) from <code>data/lidar_features.parquet</code> (3 m local lidar). Enabled via <code>EXTRA_FEATURES=lidar</code>.</dd>
+  <dt>Target</dt><dd><code>class</code> — FSCS land-cover, 10 classes after merging 1→2 (bare) and 9→8 (marine→water)</dd>
+  <dt>Validation</dt><dd>Spatially-blocked 3-fold CV; macro-F1 reported on untouched (noisy) test labels</dd>
+  <dt>Canonical config</dt><dd><code>TOTAL_SUP=32000</code>, α=0.05, <code>clean_mode=perfold_fix</code>, <code>EXTRA_FEATURES=lidar</code>, standard conformal gate, TabICL <code>n_estimators=16</code></dd>
+  <dt>Hardware / runtime</dt><dd>NVIDIA A40 (24 GB); ~2,254 s (38 min) for all 3 folds with lidar features. Host RSS ~23 GB — run under a <code>MemoryMax</code> scope.</dd>
+  <dt>Date</dt><dd>2026-06-12 (support-size sweep); 2026-06-26 (lidar features); report updated 2026-06-26</dd>
+</dl>
+
+<div class="callout good">
+  <strong>Why this report exists.</strong> The earlier <code>research_report.html</code> / <code>tabicl_report.html</code> (2026-05-19→21) document the pipeline up to ~F1 0.702. The 2026-06-12 support-size sweep established <strong>TOTAL_SUP=32000 → F1 0.7074</strong> on AlphaEarth-only features; the 2026-06-26 lidar feature test then lifted that to <strong>F1 0.7139</strong> by adding 3 terrain features. This report covers the current best (lidar) and the AlphaEarth-only baseline it improves on.
+</div>
+
+<h2>Headline result</h2>
+<table>
+  <thead>
+    <tr><th>Config</th><th>Support</th><th>Macro-F1</th><th>±std</th><th>Bal. acc.</th><th>vs reference (0.6975)</th><th></th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>perfold_fix, sup32k + lidar</strong> &nbsp;<span class="tag">canonical</span></td><td>32,000</td><td class="best">0.7139</td><td>0.0110</td><td>0.7107</td><td class="num-good">+0.0164</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td>perfold_fix, sup32k (AlphaEarth-only)</td><td>32,000</td><td>0.7074</td><td>0.0109</td><td>0.7033</td><td class="num-good">+0.0099</td><td><div class="bar-wrap"><div class="bar" style="width:99.09%"></div></div></td></tr>
+    <tr><td>perfold_all_fix, sup36k</td><td>36,000</td><td>0.7076</td><td>0.0108</td><td>0.7035</td><td class="num-good">+0.0101</td><td><div class="bar-wrap"><div class="bar" style="width:99.12%"></div></div></td></tr>
+    <tr><td>perfold_all_fix, sup25k</td><td>25,000</td><td>0.7036</td><td>0.0109</td><td>0.6987</td><td class="num-good">+0.0061</td><td><div class="bar-wrap"><div class="bar" style="width:98.56%"></div></div></td></tr>
+    <tr><td>no-force canonical, sup25k</td><td>25,000</td><td>0.6964</td><td>0.0147</td><td>0.7030</td><td class="num-bad">−0.0011</td><td><div class="bar-wrap"><div class="bar" style="width:97.55%"></div></div></td></tr>
+    <tr><td>XGBoost baseline, all-years</td><td>~52.7k</td><td>0.6513</td><td>—</td><td>—</td><td class="num-bad">−0.0462</td><td><div class="bar-wrap"><div class="bar" style="width:91.23%"></div></div></td></tr>
+  </tbody>
+</table>
+<p class="small">Reference = the 2020-only stable + TabICL pipeline (F1 0.6975) that the all-years experiment set out to beat. The current best (<strong>+ lidar</strong>) improves on it by ~1.6 points and beats the best plain tree baseline by ~6.3 points. The lidar features add <strong>+0.0065</strong> on top of the AlphaEarth-only sup32k config — a real gain (all 3 folds rose; see per-fold table), larger than the entire 25k→36k support-size sweep. Support size remains fixed at <strong>32k</strong>, the recommended operating point on the 24 GB A40 (40k OOMs).</p>
+
+<h2>Approach</h2>
+<p>The model is a two-stage transductive pipeline that turns a large, partly-unreliable static land-cover map (grunnkart) and a temporal stack of AlphaEarth embeddings into a high-quality training set for an in-context tabular foundation model.</p>
+
+<h3>1. Data: stable all-years support</h3>
+<p>Grunnkart polygons are static, but AlphaEarth embeddings span 2017–2025. The <strong>stable</strong> set keeps pixel-years whose label is temporally consistent (663,740 rows). Classes 1 and 9 are merged into 2 (bare) and 8 (water/marine) respectively, leaving 10 classes. Using all years instead of 2020-only roughly 9× the support pool while keeping per-location label agreement.</p>
+
+<h3>2. Stage-1: CC-APS conformal pseudo-labelling of the unstable pool</h3>
+<ul>
+  <li>A CatBoost stage-1 classifier is calibrated with <strong>cross-conformal APS</strong> (Adaptive Prediction Sets) at <strong>α=0.05</strong>, fully inside each CV fold (no test leakage).</li>
+  <li>The per-fold conformal threshold τ ≈ 0.937 yields prediction sets on the ~16.8k <strong>unstable</strong> rows. A row is accepted as a pseudo-label only when its prediction set is a confident singleton (the "standard" gate).</li>
+  <li>This keeps ~47% of unstable rows (<code>n_kept</code> ≈ 5.3k/fold) at a measured pseudo-label accuracy of <strong>~85%</strong>, adding hard, spatially-novel examples that the stable set under-represents.</li>
+</ul>
+
+<h3>3. Support construction: dedup + cleaning + biased subsample</h3>
+<ul>
+  <li><strong>Location dedup:</strong> the stable support is reduced to one row per unique (lon, lat), keeping the most recent year, so TabICL sees ~79k spatially-diverse locations rather than 9× pseudo-replicates of the same pixels.</li>
+  <li><strong>Class-12 cleaning (<code>perfold_all_fix</code>, train-only):</strong> snow/ice labels are stale due to fast 2017–2025 glacier retreat; melted class-12 pixels are spectrally infrastructure-like (class 11). Suspect rows (nearer to another class centroid than to the class-12 centroid) are corrected per location, <strong>train-side only</strong> — the test fold keeps original labels so F1 stays leak-free.</li>
+  <li><strong>Biased subsample to <code>TOTAL_SUP=32,000</code></strong> support rows, force-including ~4,000 class-5 (grassland) rows, which is otherwise starved in a uniform draw.</li>
+</ul>
+
+<h3>4. Stage-2: TabICL in-context prediction</h3>
+<p>The deduped, cleaned, biased support (32k rows) is fed to <strong>TabICL</strong> (<code>n_estimators=16</code>, KV-cache enabled) as in-context examples; the full stable test fold is predicted in 1k-row chunks to bound GPU memory. TabICL's attention is O(n²) in support size, which is why 32k is the practical ceiling on a 24 GB A40.</p>
+
+<h2>Lidar terrain features (the +0.0065)</h2>
+<p>The current best adds 3 features from a 3 m local lidar product (<code>data/lidar_features.parquet</code>, extracted by <code>scripts/extraction/extract_lidar_features.py</code>) to the 64 AlphaEarth bands, joined by exact (lon, lat). The 3 were selected by a fast CatBoost CV probe (<code>scripts/feature_probe_lidar.py</code>) that mirrors this pipeline's CV contract, then confirmed on the full TabICL pipeline.</p>
+<table>
+  <thead><tr><th>Feature set</th><th>n feat</th><th>Macro-F1 (TabICL)</th><th>Δ vs AlphaEarth-only</th></tr></thead>
+  <tbody>
+    <tr><td>AlphaEarth only</td><td>64</td><td>0.7074</td><td>—</td></tr>
+    <tr><td><strong>+ lidar (elevation, tri, tch)</strong></td><td>67</td><td class="best">0.7139</td><td class="num-good">+0.0065</td></tr>
+  </tbody>
+</table>
+<p class="small">Probe findings that shaped the choice: <strong>elevation, terrain-ruggedness (tri) and canopy-height (tch) are the three most important features overall</strong> — each ranks above the best single AlphaEarth band by CatBoost LossFunctionChange. The lidar <strong>aspect</strong> (sin/cos) features had ≈0 importance and slightly <em>hurt</em>; <strong>slope</strong> was marginal — so all three were dropped, and the lean 3-feature set beat the full 6-feature lidar set in the probe (0.7043 vs 0.7021). The 30 m Copernicus <strong>GLO30 DEM stays a no-op</strong> and adds nothing on top of lidar — the 3 m elevation subsumes it. No AlphaEarth-band subset beat the full 64, so all 64 are kept.</p>
+<div class="callout good">
+  <strong>The lidar gain is a vegetation-separability fix, not a class-12 fix.</strong> Unlike the earlier DEM attempt (which chased the snow/ice ↔ infrastructure split), the lidar gains land on the natural-vegetation classes that actually drag macro-F1: wetland (7) <span class="num-good">+0.016</span>, settlement (10) <span class="num-good">+0.014</span>, forest (4) <span class="num-good">+0.011</span>, grassland (5) <span class="num-good">+0.008</span>. Snow/ice (12) is flat (−0.004, within noise). Canopy height and fine terrain shape carry the structural signal the annual embedding lacks.
+</div>
+
+<h2>Per-fold detail (sup32k + lidar)</h2>
+<table>
+  <thead>
+    <tr><th>Fold</th><th>Macro-F1</th><th>Bal. acc.</th><th>Support</th><th>τ</th><th>Pseudo kept</th><th>% kept</th><th>Pseudo acc.</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>0</td><td>0.7180</td><td>0.7176</td><td>32,000</td><td>0.937</td><td>~5.3k</td><td>~47%</td><td>~0.85</td></tr>
+    <tr><td>1</td><td class="best">0.7248</td><td>0.7196</td><td>32,000</td><td>0.937</td><td>~5.4k</td><td>~48%</td><td>~0.85</td></tr>
+    <tr><td>2</td><td>0.6989</td><td>0.6950</td><td>32,000</td><td>0.936</td><td>~5.3k</td><td>~47%</td><td>~0.85</td></tr>
+    <tr><td><strong>mean</strong></td><td class="best">0.7139</td><td>0.7107</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+  </tbody>
+</table>
+<p class="small">All three folds rose vs the AlphaEarth-only run (fold 0 0.7115→0.7180, fold 1 0.7181→0.7248, fold 2 0.6925→0.6989) — a consistent +0.006–0.007, not a single-fold artifact. Fold 2 remains ~2.5 points behind folds 0/1, the same spatial-block effect (its held-out region is harder); the ±0.011 std is dominated by that between-fold spread.</p>
+
+<h2>Per-class F1 (sup32k + lidar, mean over folds)</h2>
+<table>
+  <thead>
+    <tr><th>Class</th><th>Land-cover</th><th>F1</th><th>Δ vs no-lidar</th><th></th></tr>
+  </thead>
+  <tbody>
+    <tr><td>8</td><td>water (+ marine)</td><td class="best">0.9515</td><td class="num-good">+0.0051</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td>10</td><td>settlement</td><td>0.8373</td><td class="num-good">+0.0142</td><td><div class="bar-wrap"><div class="bar" style="width:88.0%"></div></div></td></tr>
+    <tr><td>3</td><td>cropland</td><td>0.7632</td><td class="num-good">+0.0044</td><td><div class="bar-wrap"><div class="bar" style="width:80.2%"></div></div></td></tr>
+    <tr><td>11</td><td>infrastructure</td><td>0.7610</td><td class="num-good">+0.0033</td><td><div class="bar-wrap"><div class="bar" style="width:80.0%"></div></div></td></tr>
+    <tr><td>4</td><td>forest</td><td>0.7273</td><td class="num-good">+0.0114</td><td><div class="bar-wrap"><div class="bar" style="width:76.4%"></div></div></td></tr>
+    <tr><td>12</td><td>snow/ice</td><td>0.7000</td><td class="num-bad">−0.0042</td><td><div class="bar-wrap"><div class="bar" style="width:73.6%"></div></div></td></tr>
+    <tr><td>6</td><td>scrub/heathland</td><td>0.6598</td><td class="num-good">+0.0043</td><td><div class="bar-wrap"><div class="bar" style="width:69.3%"></div></div></td></tr>
+    <tr><td>7</td><td>wetland</td><td>0.6370</td><td class="num-good">+0.0159</td><td><div class="bar-wrap"><div class="bar" style="width:66.9%"></div></div></td></tr>
+    <tr><td>5</td><td>grassland</td><td>0.5580</td><td class="num-good">+0.0077</td><td><div class="bar-wrap"><div class="bar" style="width:58.6%"></div></div></td></tr>
+    <tr><td>2</td><td>bare (rock/sand)</td><td>0.5438</td><td class="num-good">+0.0030</td><td><div class="bar-wrap"><div class="bar" style="width:57.1%"></div></div></td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>Where the macro-F1 is lost.</strong> Water is near-solved (0.95). The macro mean is still dragged down by the natural-vegetation confusions: <strong>grassland (5) ↔ cropland (3) / scrub (6)</strong>, <strong>scrub (6) ↔ wetland (7)</strong>, and <strong>bare (2) ↔ scrub (6)</strong> — though the lidar features narrowed these (wetland +0.016, grassland +0.008). These remain the accuracy levers, along with class 12 (snow/ice 0.70, the one class lidar nudged down slightly). Δ values compare the lidar run against the AlphaEarth-only sup32k run. The confusion matrix below is from that earlier AlphaEarth-only run; the lidar run shifts the off-diagonals modestly toward the diagonal but the confusion structure is unchanged.
+</div>
+
+<h2>Confusion matrix (sup32k, AlphaEarth-only)</h2>
+<p class="small">Aggregated over all 3 folds (663,740 test rows), <strong>row-normalized to recall %</strong> — each row sums to 100. Diagonal (green outline) is per-class recall; off-diagonal cells are where true class → predicted class leaks. Colour intensity ∝ percentage. <code>·</code> = &lt;0.05%.</p>
+<div class="cm-wrap">
+<table class='cm'><thead><tr><th class='corner'></th><th class='corner'></th><th colspan='10'>Predicted</th></tr><tr><th class='corner'></th><th class='corner'></th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>10</th><th>11</th><th>12</th></tr></thead><tbody><tr><th class='rowlab' rowspan='10'>True</th><th class='rowlab'>2 bare</th><td class='diag' style='background:rgb(93,156,230);color:#ffffff'>47</td><td class='' style='background:rgb(201,222,246);color:#1f2328'>6</td><td class='' style='background:rgb(195,218,246);color:#1f2328'>8</td><td class='' style='background:rgb(202,223,247);color:#1f2328'>6</td><td class='' style='background:rgb(160,197,240);color:#1f2328'>18</td><td class='' style='background:rgb(232,241,251);color:#1f2328'>1</td><td class='' style='background:rgb(213,229,248);color:#1f2328'>4</td><td class='' style='background:rgb(192,216,245);color:#1f2328'>8</td><td class='' style='background:rgb(221,234,249);color:#1f2328'>3</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>3 cropland</th><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='diag' style='background:rgb(44,126,223);color:#ffffff'>75</td><td class='' style='background:rgb(231,240,251);color:#1f2328'>1</td><td class='' style='background:rgb(160,197,240);color:#1f2328'>17</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>0</td><td class='' style='background:rgb(221,234,249);color:#1f2328'>3</td><td class='' style='background:rgb(246,250,253);color:#1f2328'>0</td><td class='' style='background:rgb(220,234,249);color:#1f2328'>3</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>4 forest</th><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(235,243,252);color:#1f2328'>1</td><td class='diag' style='background:rgb(46,127,223);color:#ffffff'>74</td><td class='' style='background:rgb(206,225,247);color:#1f2328'>5</td><td class='' style='background:rgb(182,210,244);color:#1f2328'>11</td><td class='' style='background:rgb(207,226,247);color:#1f2328'>5</td><td class='' style='background:rgb(231,240,251);color:#1f2328'>1</td><td class='' style='background:rgb(230,240,251);color:#1f2328'>2</td><td class='' style='background:rgb(236,243,252);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>5 grassland</th><td class='' style='background:rgb(246,250,253);color:#1f2328'>0</td><td class='' style='background:rgb(161,198,240);color:#1f2328'>17</td><td class='' style='background:rgb(178,208,243);color:#1f2328'>12</td><td class='diag' style='background:rgb(72,143,227);color:#ffffff'>58</td><td class='' style='background:rgb(215,230,249);color:#1f2328'>4</td><td class='' style='background:rgb(205,224,247);color:#1f2328'>6</td><td class='' style='background:rgb(240,246,252);color:#1f2328'>1</td><td class='' style='background:rgb(219,233,249);color:#1f2328'>3</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>6 scrub</th><td class='' style='background:rgb(235,243,252);color:#1f2328'>1</td><td class='' style='background:rgb(236,243,252);color:#1f2328'>1</td><td class='' style='background:rgb(191,216,245);color:#1f2328'>9</td><td class='' style='background:rgb(224,236,250);color:#1f2328'>2</td><td class='diag' style='background:rgb(57,134,225);color:#ffffff'>67</td><td class='' style='background:rgb(202,222,247);color:#1f2328'>6</td><td class='' style='background:rgb(229,239,251);color:#1f2328'>2</td><td class='' style='background:rgb(234,242,251);color:#1f2328'>1</td><td class='' style='background:rgb(181,210,243);color:#1f2328'>11</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>7 wetland</th><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(234,242,251);color:#1f2328'>1</td><td class='' style='background:rgb(178,208,243);color:#1f2328'>12</td><td class='' style='background:rgb(214,230,248);color:#1f2328'>4</td><td class='' style='background:rgb(156,195,240);color:#1f2328'>19</td><td class='diag' style='background:rgb(67,140,226);color:#ffffff'>61</td><td class='' style='background:rgb(227,238,250);color:#1f2328'>2</td><td class='' style='background:rgb(237,244,252);color:#1f2328'>1</td><td class='' style='background:rgb(240,246,252);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>8 water</th><td class='' style='background:rgb(246,250,253);color:#1f2328'>0</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>0</td><td class='' style='background:rgb(230,240,251);color:#1f2328'>2</td><td class='' style='background:rgb(243,247,253);color:#1f2328'>0</td><td class='' style='background:rgb(232,241,251);color:#1f2328'>1</td><td class='' style='background:rgb(236,243,252);color:#1f2328'>1</td><td class='diag' style='background:rgb(18,110,219);color:#ffffff'>93</td><td class='' style='background:rgb(241,246,252);color:#1f2328'>0</td><td class='' style='background:rgb(228,238,250);color:#1f2328'>2</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>10 settle</th><td class='' style='background:rgb(241,246,252);color:#1f2328'>0</td><td class='' style='background:rgb(206,225,247);color:#1f2328'>5</td><td class='' style='background:rgb(217,232,249);color:#1f2328'>3</td><td class='' style='background:rgb(208,226,248);color:#1f2328'>5</td><td class='' style='background:rgb(229,239,251);color:#1f2328'>2</td><td class='' style='background:rgb(236,243,252);color:#1f2328'>1</td><td class='' style='background:rgb(229,239,251);color:#1f2328'>2</td><td class='diag' style='background:rgb(35,121,221);color:#ffffff'>81</td><td class='' style='background:rgb(238,245,252);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>11 infra</th><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(207,225,247);color:#1f2328'>5</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>0</td><td class='' style='background:rgb(159,196,240);color:#1f2328'>18</td><td class='' style='background:rgb(240,246,252);color:#1f2328'>1</td><td class='' style='background:rgb(228,239,251);color:#1f2328'>2</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>0</td><td class='diag' style='background:rgb(47,128,223);color:#ffffff'>74</td><td class='' style='background:rgb(243,247,253);color:#1f2328'>0</td></tr><tr><th class='rowlab'>12 snow/ice</th><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(246,250,253);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(214,230,248);color:#1f2328'>4</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(150,191,239);color:#1f2328'>21</td><td class='diag' style='background:rgb(44,126,223);color:#ffffff'>75</td></tr></tbody></table>
+</div>
+<p class="cm-legend">Reading the off-diagonals: <strong>bare (2)</strong> bleeds 18% into scrub and 8% into settlement (rock vs sparse-veg / built); <strong>grassland (5)</strong> loses 17% to cropland and 12% to forest; <strong>wetland (7)</strong> gives 19% to scrub and 12% to forest; <strong>infrastructure (11)</strong> ↔ <strong>scrub (6)</strong> is bidirectional (18% / 11%); <strong>snow/ice (12)</strong> leaks 21% into infrastructure — the residue of the stale-glacier label problem. Water (93% recall) and settlement (81%) are clean.</p>
+
+<h2>Support-size curve</h2>
+<p class="small">Macro-F1 vs TabICL support size, holding all else at the canonical config (<code>perfold_all_fix</code>, α=0.05, standard gate). This is the one live accuracy lever; the curve flattens by 32k.</p>
+<div class="lc">
+  <div class="lc-card"><div class="v">0.7036</div><div class="s">25,000 support<br>±0.0109</div></div>
+  <div class="lc-card"><div class="v">0.7074</div><div class="s"><strong>32,000</strong> (canonical)<br>±0.0109</div></div>
+  <div class="lc-card"><div class="v">0.7076</div><div class="s">36,000 (saturated)<br>±0.0108</div></div>
+</div>
+<table>
+  <thead><tr><th>Support</th><th>Macro-F1</th><th>±std</th><th>Δ vs prev</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>25,000</td><td>0.7036</td><td>0.0109</td><td>—</td><td>prior canonical</td></tr>
+    <tr><td>32,000</td><td class="best">0.7074</td><td>0.0109</td><td class="num-good">+0.0038</td><td>recommended operating point</td></tr>
+    <tr><td>36,000</td><td class="best">0.7076</td><td>0.0108</td><td>+0.0002</td><td>saturated (within fold noise of 32k)</td></tr>
+    <tr><td>40,000</td><td class="num-bad">OOM</td><td>—</td><td>—</td><td>CUDA OOM on all folds (A40 24 GB, missed by ~300 MiB)</td></tr>
+  </tbody>
+</table>
+<p class="small">The 25k→32k gain (+0.0038) appeared in all three folds — consistent, not RNG — and concentrated in the rare/confusable classes (snow/ice +0.018, bare +0.009). Beyond 32k the curve is flat (Δ0.0002 ≪ ±0.011 fold std), and 40k exceeds A40 memory, so 32k is the practical and recommended ceiling.</p>
+
+<h2>What moved the needle — and what didn't</h2>
+<ul class="takeaways">
+  <li><strong>Support size is the live lever.</strong> 25k → 0.7036, <strong>32k → 0.7074</strong>, 36k → 0.7076 (saturated). All 3 folds gained ~+0.004 at 32k — consistent, not RNG. Gains concentrate in rare/confusable classes (cls12 +0.018, bare +0.009).</li>
+  <li><strong>All-years support beats 2020-only</strong> (more spatially-diverse deduped locations), and <strong>train-only class-12 cleaning</strong> (<code>perfold_all_fix</code>) adds the final ~+0.007 over the no-force baseline (0.6964 → 0.7036 → 0.7074 with the larger support).</li>
+  <li><strong>Conformal-gate noise correction for class 12 (nc-gate) is a no-op</strong> — ties the standard gate at 0.7036. The gate almost never pseudo-labels class 12 (~9 rows across all folds), so the correction has nothing to act on. Don't iterate further there.</li>
+  <li><strong>Adding class-12 support rows (dedup-exempt) makes it worse</strong> (0.665 → 0.320): class 12 is spectrally near-inseparable from the 62×-larger class 11, so more cls12 context amplifies the 11↔12 contradiction. Keep dedup-exempt empty until a real 11-vs-12 discriminator exists.</li>
+  <li><strong>Lidar terrain features are the current best lever (+0.0065).</strong> Three 3 m-lidar features — elevation, ruggedness (tri), canopy height (tch) — added on top of the AlphaEarth bands lift macro-F1 0.7074 → <strong>0.7139</strong>, with gains on the vegetation classes (wetland +0.016, settlement +0.014, forest +0.011). They are the three most important features overall. Lidar aspect/slope were dropped (≈0 / marginal importance).</li>
+  <li><strong>The 30 m Copernicus DEM (elevation/slope) added almost nothing</strong> over AlphaEarth and nothing on top of lidar — the 3 m lidar elevation subsumes it. The earlier "DEM won't fix 11-vs-12" finding still holds; the real win came from canopy/terrain structure helping the natural-vegetation confusions, not the snow/ice split.</li>
+</ul>
+
+<h2>Reproduce</h2>
+<pre><code># A40 GPU, support=32k + lidar features. Wrap in a memory scope: TabICL can spike host RSS to ~23 GB.
+systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 \
+  env CLEAN_MODE=perfold_fix TOTAL_SUP=32000 EXTRA_FEATURES=lidar \
+      OUT_SUFFIX=_perfold_fix_sup32k_lidar \
+  ~/myprojects/recover/.venv/bin/python \
+  common_ground/scripts/llto_schemeB_allyears.py
+# 40k OOMs on the 24 GB A40 (all folds). The script fails fast if device != cuda with TOTAL_SUP > 8k.
+# Drop EXTRA_FEATURES=lidar to reproduce the 0.7074 AlphaEarth-only baseline.
+# Feature search before a full run: scripts/feature_probe_lidar.py (fast CatBoost CV probe).
+</code></pre>
+
+<footer>
+  Source data: <code>schemeB_allyears_results_perfold_fix_sup32k_lidar.json</code> (F1 0.7139, canonical, lidar),
+  <code>…_sup32k.json</code> (0.7074, AlphaEarth-only baseline), <code>…_sup36k.json</code> (0.7076).
+  Pipeline: <code>common_ground/scripts/llto_schemeB_allyears.py</code> (<code>EXTRA_FEATURES=lidar</code>).
+  Feature probe: <code>scripts/feature_probe_lidar.py</code>. Updated 2026-06-26.
+</footer>
+
+</body>
+</html>

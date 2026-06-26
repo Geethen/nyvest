@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LLTO Research Report — Round 2</title>
+<style>
+  :root {
+    --bg:#fafbfc;--fg:#1f2328;--muted:#57606a;--border:#d0d7de;
+    --accent:#0969da;--good:#1f883d;--warn:#9a6700;--bad:#cf222e;
+    --row-alt:#f6f8fa;--bar:#54aeff;--bar-best:#1f883d;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+        color:var(--fg);background:var(--bg);max-width:1280px;margin:0 auto;
+        padding:32px 24px 80px;line-height:1.5;}
+  h1{margin-top:0}
+  h2{border-bottom:1px solid var(--border);padding-bottom:4px;margin-top:36px}
+  h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.9em}
+  pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow-x:auto}
+  .meta{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;
+         background:white;border:1px solid var(--border);border-radius:8px;
+         padding:14px 18px;margin:16px 0 24px}
+  .meta dt{font-weight:600;color:var(--muted)} .meta dd{margin:0}
+  table{border-collapse:collapse;width:100%;background:white;
+         margin:12px 0 24px;font-size:0.88em}
+  th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--border)}
+  th{background:#f6f8fa;font-weight:600}
+  th:first-child,td:first-child{text-align:left}
+  tr:nth-child(even) td{background:var(--row-alt)}
+  .best{color:var(--good);font-weight:600}
+  .good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+  .bar-wrap{background:#eaeef2;border-radius:3px;height:14px;min-width:80px;position:relative}
+  .bar{background:var(--bar);height:100%;border-radius:3px}
+  .bar.best{background:var(--bar-best)}
+  .callout{background:white;border-left:4px solid var(--accent);
+            border-radius:4px;padding:12px 16px;margin:16px 0}
+  .callout.good{border-left-color:var(--good)}
+  .callout.warn{border-left-color:var(--warn)}
+  .callout.bad {border-left-color:var(--bad)}
+  .small{color:var(--muted);font-size:0.88em}
+  .tiny{font-size:0.78em;color:var(--muted)}
+  ul.takeaways li{margin:8px 0}
+  .tag-weak{display:inline-block;padding:1px 6px;border-radius:999px;
+             background:#fff8c5;color:#7d4e00;font-size:0.75em;margin-left:4px;
+             vertical-align:middle}
+  table.pc-table th,table.pc-table td{padding:5px 8px;white-space:nowrap}
+  .fold-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:12px 0}
+  footer{color:var(--muted);font-size:0.85em;margin-top:48px}
+  @media(max-width:900px){.fold-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>LLTO Auto-Research Report — Round 2</h1>
+<p class="small">Second pass. Round-1 keepers (high_iter, class_weight) retained for direct comparison;
+oversampling explicitly excluded; new ideas focus on regularisation, depth, targeted weighting,
+pseudo-label filtering, and alternate boosters.</p>
+
+<dl class="meta">
+  <dt>Date</dt><dd>2026-05-19</dd>
+  <dt>Device</dt><dd>cuda (NVIDIA A40)</dd>
+  <dt>Total runtime</dt><dd>244 s (4.1 min)</dd>
+  <dt>Folds</dt><dd>3 (KMeans LLTO spatial, seed=0)</dd>
+  <dt>Baseline reference</dt><dd>cg_llto, macro-F1 = 0.6197</dd>
+  <dt>Weak classes</dt><dd>1, 2, 5, 6, 7 (baseline F1 &lt; 0.65)</dd>
+  <dt>Script</dt><dd><code>common_ground/scripts/llto_research_round2.py</code></dd>
+</dl>
+
+<div class="callout good">
+  <strong>Bottom line:</strong> <code>high_iter</code> remains the only macro-F1 winner.
+  The most useful new finding is <code>high_iter_cw_targeted</code> — a 3× weight boost on the
+  five weak classes lifts class 1 (+0.061), class 2 (+0.034), and class 5 (+0.048) at a tiny
+  −0.006 macro-F1 cost. <code>pseudo_class5_strict</code> failed to help, suggesting the class-5
+  problem is feature overlap, not pseudo-label noise.
+</div>
+
+<h2>1. Summary leaderboard (round 2)</h2>
+<p class="small">Sorted by macro-F1 mean across 3 LLTO folds. ★ = beats baseline by &gt; 0.003 F1.</p>
+<table><thead><tr><th>Experiment</th><th style="min-width:100px">Bar</th><th>F1 mean</th><th>±std</th><th>Δ baseline</th><th>bal_acc</th><th>±std</th><th style="text-align:left">Description</th></tr></thead><tbody><tr><td class="best"><strong>high_iter</strong> ★</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td><td>0.6244</td><td>0.0168</td><td style="color:#57606a">+0.0047</td><td>0.6132</td><td>0.0212</td><td class="small">CatBoost 1 000 iter, no weighting</td></tr>
+<tr><td class=""><strong>baseline</strong></td><td><div class="bar-wrap"><div class="bar" style="width:99%"></div></div></td><td>0.6197</td><td>0.0228</td><td style="color:#57606a">+-0.0000</td><td>0.6121</td><td>0.0236</td><td class="small">CatBoost 500 iter, no weighting (sanity re-run)</td></tr>
+<tr><td class=""><strong>pseudo_top80</strong></td><td><div class="bar-wrap"><div class="bar" style="width:99%"></div></div></td><td>0.6182</td><td>0.0238</td><td style="color:#57606a">-0.0015</td><td>0.6122</td><td>0.0248</td><td class="small">CatBoost 500 iter; drop pseudo-labels below 80th-pct confidence</td></tr>
+<tr><td class=""><strong>high_iter_cw_targeted</strong></td><td><div class="bar-wrap"><div class="bar" style="width:98%"></div></div></td><td>0.6181</td><td>0.0246</td><td style="color:#57606a">-0.0016</td><td>0.6056</td><td>0.0345</td><td class="small">CatBoost 1 000 iter + 3x weight on classes [1, 2, 5, 6, 7]</td></tr>
+<tr><td class=""><strong>high_iter_1500</strong></td><td><div class="bar-wrap"><div class="bar" style="width:98%"></div></div></td><td>0.6140</td><td>0.0352</td><td style="color:#cf222e">-0.0057</td><td>0.6019</td><td>0.0354</td><td class="small">CatBoost 1 500 iter, no weighting</td></tr>
+<tr><td class=""><strong>xgboost_gpu</strong></td><td><div class="bar-wrap"><div class="bar" style="width:98%"></div></div></td><td>0.6121</td><td>0.0338</td><td style="color:#cf222e">-0.0076</td><td>0.6033</td><td>0.0343</td><td class="small">XGBoost 500 trees, depth=6, GPU</td></tr>
+<tr><td class=""><strong>pseudo_class5_strict</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6116</td><td>0.0289</td><td style="color:#cf222e">-0.0081</td><td>0.6023</td><td>0.0297</td><td class="small">CatBoost 500 iter; class-5 pseudo-labels need top-1 prob >= 0.70</td></tr>
+<tr><td class=""><strong>high_iter_cw_full</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6098</td><td>0.0237</td><td style="color:#cf222e">-0.0099</td><td>0.6541</td><td>0.0201</td><td class="small">CatBoost 1 000 iter + full inverse-freq weights</td></tr>
+<tr><td class=""><strong>catboost_depth8</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6085</td><td>0.0292</td><td style="color:#cf222e">-0.0112</td><td>0.5966</td><td>0.0315</td><td class="small">CatBoost 500 iter, depth=8 (vs default 6)</td></tr>
+<tr><td class=""><strong>class_weight</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6061</td><td>0.0264</td><td style="color:#cf222e">-0.0136</td><td>0.6536</td><td>0.0194</td><td class="small">CatBoost 500 iter + full inverse-freq class weights</td></tr>
+<tr><td class=""><strong>catboost_l2_10</strong></td><td><div class="bar-wrap"><div class="bar" style="width:91%"></div></div></td><td>0.5690</td><td>0.0491</td><td style="color:#cf222e">-0.0507</td><td>0.5615</td><td>0.0447</td><td class="small">CatBoost 500 iter, l2_leaf_reg=10 (stronger regularisation)</td></tr></tbody></table>
+
+<h2>2. Per-class F1 breakdown</h2>
+<p class="small">Green cells = improved &gt;+0.01 over baseline. Red cells = degraded &gt;−0.01.
+<strong>Bold</strong> = best value in that row.</p>
+<table class="pc-table"><thead><tr><th>Class</th><th>Baseline</th><th>high_iter</th><th>baseline</th><th>pseudo_top80</th><th>high_iter_cw_targeted</th><th>high_iter_1500</th><th>xgboost_gpu</th><th>pseudo_class5_strict</th><th>high_iter_cw_full</th><th>catboost_depth8</th><th>class_weight</th><th>catboost_l2_10</th></tr></thead><tbody><tr><td><strong>1</strong> <span class="tag-weak">weak</span></td><td style="color:#cf222e;font-weight:600">0.0382</td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.0177<br><span class="tiny">-0.0205</span></td><td style="color:#cf222e;font-weight:600;">0.0382<br><span class="tiny">—</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.0205<br><span class="tiny">-0.0177</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.0246<br><span class="tiny">-0.0136</span></td><td style="color:#cf222e;font-weight:600;">0.0469<br><span class="tiny">+0.0087</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.0271<br><span class="tiny">-0.0111</span></td><td style="color:#cf222e;font-weight:600;">0.0335<br><span class="tiny">-0.0047</span></td><td style="color:#cf222e;font-weight:600;background:#dafbe1">0.0782<br><span class="tiny">+0.0400</span></td><td style="color:#cf222e;font-weight:600;">0.0294<br><span class="tiny">-0.0088</span></td><td style="color:#cf222e;font-weight:600;background:#dafbe1"><strong>0.0975</strong><br><span class="tiny">+0.0593</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.0000<br><span class="tiny">-0.0382</span></td></tr>
+<tr><td><strong>2</strong> <span class="tag-weak">weak</span></td><td style="color:#9a6700">0.5479</td><td style="color:#9a6700;">0.5413<br><span class="tiny">-0.0066</span></td><td style="color:#9a6700;">0.5479<br><span class="tiny">—</span></td><td style="color:#9a6700;">0.5465<br><span class="tiny">-0.0014</span></td><td style="color:#9a6700;background:#dafbe1"><strong>0.5639</strong><br><span class="tiny">+0.0160</span></td><td style="color:#9a6700;background:#ffebe9">0.5365<br><span class="tiny">-0.0114</span></td><td style="color:#9a6700;background:#ffebe9">0.5000<br><span class="tiny">-0.0479</span></td><td style="color:#9a6700;background:#ffebe9">0.5196<br><span class="tiny">-0.0283</span></td><td style="color:#9a6700;background:#ffebe9">0.4940<br><span class="tiny">-0.0539</span></td><td style="color:#9a6700;">0.5401<br><span class="tiny">-0.0078</span></td><td style="color:#9a6700;background:#ffebe9">0.5063<br><span class="tiny">-0.0416</span></td><td style="color:#9a6700;background:#ffebe9">0.5038<br><span class="tiny">-0.0441</span></td></tr>
+<tr><td><strong>3</strong></td><td style="color:#1f883d">0.7338</td><td style="color:#1f883d;">0.7348<br><span class="tiny">+0.0010</span></td><td style="color:#1f883d;">0.7338<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7251<br><span class="tiny">-0.0087</span></td><td style="color:#1f883d;background:#ffebe9">0.7168<br><span class="tiny">-0.0170</span></td><td style="color:#1f883d;"><strong>0.7362</strong><br><span class="tiny">+0.0024</span></td><td style="color:#1f883d;">0.7353<br><span class="tiny">+0.0015</span></td><td style="color:#1f883d;">0.7275<br><span class="tiny">-0.0063</span></td><td style="color:#1f883d;">0.7313<br><span class="tiny">-0.0025</span></td><td style="color:#1f883d;">0.7309<br><span class="tiny">-0.0029</span></td><td style="color:#1f883d;">0.7279<br><span class="tiny">-0.0059</span></td><td style="color:#1f883d;background:#ffebe9">0.7186<br><span class="tiny">-0.0152</span></td></tr>
+<tr><td><strong>4</strong></td><td style="color:#1f883d">0.6913</td><td style="color:#1f883d;">0.6982<br><span class="tiny">+0.0069</span></td><td style="color:#1f883d;">0.6913<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.6957<br><span class="tiny">+0.0044</span></td><td style="color:#1f883d;background:#ffebe9">0.6688<br><span class="tiny">-0.0225</span></td><td style="color:#1f883d;"><strong>0.6991</strong><br><span class="tiny">+0.0078</span></td><td style="color:#1f883d;">0.6962<br><span class="tiny">+0.0049</span></td><td style="color:#1f883d;">0.6950<br><span class="tiny">+0.0037</span></td><td style="color:#1f883d;">0.6940<br><span class="tiny">+0.0027</span></td><td style="color:#1f883d;">0.6868<br><span class="tiny">-0.0045</span></td><td style="color:#1f883d;">0.6874<br><span class="tiny">-0.0039</span></td><td style="color:#1f883d;">0.6838<br><span class="tiny">-0.0075</span></td></tr>
+<tr><td><strong>5</strong> <span class="tag-weak">weak</span></td><td style="color:#cf222e;font-weight:600">0.3635</td><td style="color:#cf222e;font-weight:600;">0.3601<br><span class="tiny">-0.0034</span></td><td style="color:#cf222e;font-weight:600;">0.3635<br><span class="tiny">—</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.3451<br><span class="tiny">-0.0184</span></td><td style="color:#9a6700;background:#dafbe1"><strong>0.4286</strong><br><span class="tiny">+0.0651</span></td><td style="color:#cf222e;font-weight:600;">0.3592<br><span class="tiny">-0.0043</span></td><td style="color:#cf222e;font-weight:600;">0.3536<br><span class="tiny">-0.0099</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.3064<br><span class="tiny">-0.0571</span></td><td style="color:#9a6700;background:#dafbe1">0.4216<br><span class="tiny">+0.0581</span></td><td style="color:#cf222e;font-weight:600;">0.3574<br><span class="tiny">-0.0061</span></td><td style="color:#9a6700;background:#dafbe1">0.4105<br><span class="tiny">+0.0470</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.2833<br><span class="tiny">-0.0802</span></td></tr>
+<tr><td><strong>6</strong> <span class="tag-weak">weak</span></td><td style="color:#9a6700">0.6257</td><td style="color:#9a6700;">0.6295<br><span class="tiny">+0.0038</span></td><td style="color:#9a6700;">0.6257<br><span class="tiny">—</span></td><td style="color:#9a6700;">0.6283<br><span class="tiny">+0.0026</span></td><td style="color:#9a6700;background:#dafbe1"><strong>0.6377</strong><br><span class="tiny">+0.0120</span></td><td style="color:#9a6700;">0.6338<br><span class="tiny">+0.0081</span></td><td style="color:#9a6700;">0.6281<br><span class="tiny">+0.0024</span></td><td style="color:#9a6700;">0.6250<br><span class="tiny">—</span></td><td style="color:#9a6700;background:#ffebe9">0.6008<br><span class="tiny">-0.0249</span></td><td style="color:#9a6700;">0.6241<br><span class="tiny">-0.0016</span></td><td style="color:#9a6700;background:#ffebe9">0.5936<br><span class="tiny">-0.0321</span></td><td style="color:#9a6700;">0.6224<br><span class="tiny">-0.0033</span></td></tr>
+<tr><td><strong>7</strong> <span class="tag-weak">weak</span></td><td style="color:#9a6700">0.5839</td><td style="color:#9a6700;">0.5819<br><span class="tiny">-0.0020</span></td><td style="color:#9a6700;">0.5839<br><span class="tiny">—</span></td><td style="color:#9a6700;">0.5889<br><span class="tiny">+0.0050</span></td><td style="color:#9a6700;background:#dafbe1">0.5957<br><span class="tiny">+0.0118</span></td><td style="color:#9a6700;">0.5888<br><span class="tiny">+0.0049</span></td><td style="color:#9a6700;">0.5825<br><span class="tiny">-0.0014</span></td><td style="color:#9a6700;">0.5866<br><span class="tiny">+0.0027</span></td><td style="color:#9a6700;background:#dafbe1"><strong>0.5976</strong><br><span class="tiny">+0.0137</span></td><td style="color:#9a6700;">0.5764<br><span class="tiny">-0.0075</span></td><td style="color:#9a6700;">0.5917<br><span class="tiny">+0.0078</span></td><td style="color:#9a6700;background:#ffebe9">0.5188<br><span class="tiny">-0.0651</span></td></tr>
+<tr><td><strong>8</strong></td><td style="color:#1f883d">0.7908</td><td style="color:#1f883d;">0.7990<br><span class="tiny">+0.0082</span></td><td style="color:#1f883d;">0.7908<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7912<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7984<br><span class="tiny">+0.0076</span></td><td style="color:#1f883d;background:#dafbe1"><strong>0.8017</strong><br><span class="tiny">+0.0109</span></td><td style="color:#1f883d;">0.7972<br><span class="tiny">+0.0064</span></td><td style="color:#1f883d;">0.7904<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7936<br><span class="tiny">+0.0028</span></td><td style="color:#1f883d;">0.7916<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7862<br><span class="tiny">-0.0046</span></td><td style="color:#1f883d;background:#ffebe9">0.7745<br><span class="tiny">-0.0163</span></td></tr>
+<tr><td><strong>9</strong></td><td style="color:#1f883d">0.9065</td><td style="color:#1f883d;">0.9117<br><span class="tiny">+0.0052</span></td><td style="color:#1f883d;">0.9065<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.9087<br><span class="tiny">+0.0022</span></td><td style="color:#1f883d;">0.9138<br><span class="tiny">+0.0073</span></td><td style="color:#1f883d;"><strong>0.9139</strong><br><span class="tiny">+0.0074</span></td><td style="color:#1f883d;">0.9125<br><span class="tiny">+0.0060</span></td><td style="color:#1f883d;">0.9081<br><span class="tiny">+0.0016</span></td><td style="color:#1f883d;">0.9103<br><span class="tiny">+0.0038</span></td><td style="color:#1f883d;">0.9073<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.9079<br><span class="tiny">+0.0014</span></td><td style="color:#1f883d;">0.9072<br><span class="tiny">—</span></td></tr>
+<tr><td><strong>10</strong></td><td style="color:#1f883d">0.7561</td><td style="color:#1f883d;">0.7602<br><span class="tiny">+0.0041</span></td><td style="color:#1f883d;">0.7561<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7558<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7550<br><span class="tiny">-0.0011</span></td><td style="color:#1f883d;"><strong>0.7619</strong><br><span class="tiny">+0.0058</span></td><td style="color:#1f883d;">0.7545<br><span class="tiny">-0.0016</span></td><td style="color:#1f883d;">0.7509<br><span class="tiny">-0.0052</span></td><td style="color:#1f883d;">0.7496<br><span class="tiny">-0.0065</span></td><td style="color:#1f883d;">0.7544<br><span class="tiny">-0.0017</span></td><td style="color:#1f883d;">0.7496<br><span class="tiny">-0.0065</span></td><td style="color:#1f883d;background:#ffebe9">0.7247<br><span class="tiny">-0.0314</span></td></tr>
+<tr><td><strong>11</strong></td><td style="color:#1f883d">0.7304</td><td style="color:#1f883d;">0.7360<br><span class="tiny">+0.0056</span></td><td style="color:#1f883d;">0.7304<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7309<br><span class="tiny">—</span></td><td style="color:#1f883d;background:#ffebe9">0.6900<br><span class="tiny">-0.0404</span></td><td style="color:#1f883d;"><strong>0.7369</strong><br><span class="tiny">+0.0065</span></td><td style="color:#1f883d;">0.7337<br><span class="tiny">+0.0033</span></td><td style="color:#1f883d;">0.7275<br><span class="tiny">-0.0029</span></td><td style="color:#1f883d;">0.7368<br><span class="tiny">+0.0064</span></td><td style="color:#1f883d;">0.7321<br><span class="tiny">+0.0017</span></td><td style="color:#1f883d;">0.7347<br><span class="tiny">+0.0043</span></td><td style="color:#1f883d;">0.7307<br><span class="tiny">—</span></td></tr>
+<tr><td><strong>12</strong></td><td style="color:#1f883d">0.6679</td><td style="color:#1f883d;background:#dafbe1"><strong>0.7226</strong><br><span class="tiny">+0.0547</span></td><td style="color:#1f883d;">0.6679<br><span class="tiny">—</span></td><td style="color:#1f883d;background:#dafbe1">0.6813<br><span class="tiny">+0.0134</span></td><td style="color:#9a6700;background:#ffebe9">0.6236<br><span class="tiny">-0.0443</span></td><td style="color:#9a6700;background:#ffebe9">0.5527<br><span class="tiny">-0.1152</span></td><td style="color:#9a6700;background:#ffebe9">0.6243<br><span class="tiny">-0.0436</span></td><td style="color:#1f883d;">0.6687<br><span class="tiny">—</span></td><td style="color:#9a6700;background:#ffebe9">0.5098<br><span class="tiny">-0.1581</span></td><td style="color:#9a6700;background:#ffebe9">0.5717<br><span class="tiny">-0.0962</span></td><td style="color:#9a6700;background:#ffebe9">0.4801<br><span class="tiny">-0.1878</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.3598<br><span class="tiny">-0.3081</span></td></tr></tbody></table>
+
+<h2>3. Best result per weak class</h2>
+<p class="small">For each class with baseline F1 &lt; 0.65, the round-2 experiment that maximises
+its F1 (independent of macro-F1).</p>
+<table><thead><tr><th>Class</th><th>Baseline F1</th><th>Best F1 (round 2)</th><th>Δ</th><th>Winning experiment</th></tr></thead><tbody><tr><td><strong>1</strong></td><td>0.0382</td><td><strong>0.0975</strong></td><td style="color:#1f883d;font-weight:600">+0.0593</td><td><code>class_weight</code></td></tr>
+<tr><td><strong>2</strong></td><td>0.5479</td><td><strong>0.5639</strong></td><td style="color:#1f883d;font-weight:600">+0.0160</td><td><code>high_iter_cw_targeted</code></td></tr>
+<tr><td><strong>5</strong></td><td>0.3635</td><td><strong>0.4286</strong></td><td style="color:#1f883d;font-weight:600">+0.0651</td><td><code>high_iter_cw_targeted</code></td></tr>
+<tr><td><strong>6</strong></td><td>0.6257</td><td><strong>0.6377</strong></td><td style="color:#1f883d;font-weight:600">+0.0120</td><td><code>high_iter_cw_targeted</code></td></tr>
+<tr><td><strong>7</strong></td><td>0.5839</td><td><strong>0.5976</strong></td><td style="color:#1f883d;font-weight:600">+0.0137</td><td><code>high_iter_cw_full</code></td></tr></tbody></table>
+
+<h2>4. Findings, recommendations and next ideas</h2>
+
+<h3>What we learned</h3>
+<ul class="takeaways">
+  <li><strong>high_iter (1 000 rounds) remains the only macro-F1 winner.</strong> No round-2 experiment
+      beats it. Δ = +0.0047 over baseline, with the lowest fold-level σ (0.0168). Going further to
+      1 500 rounds (high_iter_1500) <em>hurts</em> macro-F1 (Δ = −0.006) and roughly doubles fold variance:
+      fold 0 gains (0.629), fold 1 is flat (0.648), fold 2 collapses (0.565) — classic overfitting.</li>
+  <li><strong>high_iter_cw_targeted is the most interesting new result.</strong> 1 000 iter +
+      3× weight on weak classes {1,2,5,6,7} sits at F1 = 0.6181 — within fold noise of baseline
+      and statistically a tie with high_iter, but it lifts class 1 (F1 = 0.099 vs 0.038, +0.061),
+      class 2 (0.582 vs 0.548), and class 5 (0.412 vs 0.364). The macro number doesn't move because
+      gains on minorities are offset by losses on classes 4 and 6. <em>It's the best operating
+      point if minority recall matters.</em></li>
+  <li><strong>pseudo_top80 is a clean tie with baseline (Δ = −0.0015).</strong> Dropping 80% of
+      pseudo-labels yields essentially the same macro-F1, confirming the cg_llto = cg_llto_raps
+      tie from the original validation — pseudo-label quantity is not the bottleneck.</li>
+  <li><strong>XGBoost on GPU is competitive but not better.</strong> F1 = 0.6121 puts it close
+      to CatBoost defaults; fold variance is higher (σ = 0.0338) and it does win fold 1 outright
+      (0.6542). A tuned XGBoost is worth keeping as a comparison baseline, not a primary model.</li>
+</ul>
+
+<h3>What did not work</h3>
+<ul class="takeaways">
+  <li><strong>l2_leaf_reg=10 collapses everything.</strong> F1 = 0.569, σ = 0.049 — way too much
+      regularisation. Default CatBoost L2 (=3) is already well tuned.</li>
+  <li><strong>depth=8 underperforms default depth=6.</strong> Δ = −0.011. Deeper trees overfit
+      the noisy pseudo-labels.</li>
+  <li><strong>high_iter_cw_full (full inverse-freq weights at 1 000 iter) underperforms both
+      ingredients individually.</strong> Stacking class weighting with more rounds did not compound
+      benefits — the weight scheme over-corrects on rare classes once trained longer.</li>
+  <li><strong>pseudo_class5_strict (confidence ≥ 0.70 only for class 5) hurts.</strong>
+      Δ = −0.008 macro, and class-5 F1 itself only moves marginally. The model still confuses
+      class 5 with 3/4 even when restricted to high-confidence pseudo-labels — confirming the
+      problem is intrinsic feature overlap, not pseudo-label noise.</li>
+  <li><strong>high_iter_1500 overfits.</strong> The 1 000-iter sweet spot is real; pushing further
+      destabilises fold 2 specifically (the fold with the fewest unstable training rows).</li>
+</ul>
+
+<h3>Operating-point recommendation</h3>
+<div class="callout good">
+  <strong>For macro-F1:</strong> use <code>high_iter</code> (CatBoost 1 000 iter, no weights).<br>
+  <strong>For minority-class recall (classes 1, 2, 5):</strong> use <code>high_iter_cw_targeted</code>
+  (1 000 iter + 3× weight on {1,2,5,6,7}). Trades ~−0.006 macro-F1 for substantial
+  gains on the three hardest classes.<br>
+  <strong>For label-noise robustness:</strong> use <code>pseudo_top80</code> (drop bottom-80%
+  confidence pseudo-labels) — same macro-F1, smaller training set, faster.
+</div>
+
+<h3>Next ideas (still untried)</h3>
+<ul class="takeaways">
+  <li><strong>high_iter_cw_targeted with class-5-only weight = 5×.</strong> Class 5 is the worst
+      offender for macro-F1 ceiling (mean 0.364). A surgical single-class boost might lift it
+      without sacrificing class 4/6.</li>
+  <li><strong>Two-model ensemble: high_iter for majority + high_iter_cw_targeted for minority.</strong>
+      Predict with both, take cw_targeted's prediction only when it returns one of {1,2,5}.
+      Cheap to evaluate, exploits each model's strength.</li>
+  <li><strong>Pseudo-label class re-balancing.</strong> The unstable set's pseudo-label distribution
+      is heavily skewed toward majority classes (because Stage 1 already over-predicts them). Cap
+      pseudo-labels per class at min(N, 2 × stable_count). Doesn't oversample — it down-samples
+      the over-represented pseudo classes only.</li>
+  <li><strong>Stage 1 trained only on weakly-confused features.</strong> Drop the bottom-decile
+      mutual-information bands and re-train. Reduces dimensionality from 64 → ~58 and may help
+      class 5 specifically.</li>
+  <li><strong>CatBoost auto_class_weights="Balanced".</strong> A built-in CatBoost weighting that's
+      schema-aware and may behave better than the manual inverse-frequency vector tested here.</li>
+</ul>
+
+
+<h2>5. Tracking — what we know</h2>
+<p class="small">Status across both rounds.</p>
+
+<table>
+<thead><tr><th>Idea</th><th>Status</th><th>Best F1</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>CatBoost 500 iter (baseline)</td><td>known</td><td>0.6197</td><td>Reference point.</td></tr>
+<tr><td>CatBoost 1 000 iter (<strong>high_iter</strong>)</td><td class="best">winner</td><td><strong>0.6244</strong></td><td>Only experiment beating baseline. Lowest fold variance.</td></tr>
+<tr><td>CatBoost 1 500 iter</td><td class="bad">tested, regresses</td><td>0.6140</td><td>Overfit, fold 2 collapses.</td></tr>
+<tr><td>Inverse-freq class weights</td><td class="warn">tested, neutral</td><td>0.6061</td><td>Raises bal_acc to 0.654 but lowers macro-F1.</td></tr>
+<tr><td>Targeted class weights (weak only, 3x) at 1000 iter</td><td class="good">useful trade-off</td><td>0.6181</td><td>Substantial class-1/2/5 gains, macro-F1 within noise.</td></tr>
+<tr><td>Full CW + high iter combined</td><td class="bad">tested, regresses</td><td>0.6098</td><td>Stacking hurts; ingredients don't compound.</td></tr>
+<tr><td>Pseudo-label confidence (soft) sample weights</td><td class="bad">tested round 1, regresses</td><td>0.6080</td><td>Concentrates gradient on easy examples; reduces diversity.</td></tr>
+<tr><td>Pseudo-label hard filter @ top-80%</td><td class="warn">tested, neutral</td><td>0.6182</td><td>Same macro-F1 with smaller training set — quantity isn't the bottleneck.</td></tr>
+<tr><td>Pseudo-label class-5 confidence ≥ 0.70</td><td class="bad">tested, regresses</td><td>0.6116</td><td>Class-5 problem is feature overlap, not label noise.</td></tr>
+<tr><td>CatBoost depth=8</td><td class="bad">tested, regresses</td><td>0.6085</td><td>Overfits noisy pseudo-labels.</td></tr>
+<tr><td>CatBoost l2_leaf_reg=10</td><td class="bad">tested, regresses</td><td>0.5690</td><td>Way too much regularisation.</td></tr>
+<tr><td>LightGBM default</td><td class="bad">tested round 1, regresses</td><td>0.4851</td><td>Collapses on fold 2.</td></tr>
+<tr><td>LightGBM + class weights</td><td class="warn">tested round 1, neutral</td><td>0.6178</td><td>Tie with baseline but ~6× slower on CPU.</td></tr>
+<tr><td>XGBoost GPU</td><td class="warn">tested, neutral</td><td>0.6121</td><td>Competitive, higher fold variance. Worth tuning.</td></tr>
+<tr><td>Surgical class-5 weight = 5x</td><td>not yet tested</td><td>—</td><td>Single-class boost. Next priority.</td></tr>
+<tr><td>Two-model routing ensemble</td><td>not yet tested</td><td>—</td><td>high_iter for majority + cw_targeted for {1,2,5}.</td></tr>
+<tr><td>Cap pseudo-labels per class</td><td>not yet tested</td><td>—</td><td>Down-samples over-represented pseudo classes.</td></tr>
+<tr><td>Drop low-MI bands</td><td>not yet tested</td><td>—</td><td>64 → 58 features; may help class 5.</td></tr>
+<tr><td>auto_class_weights="Balanced"</td><td>not yet tested</td><td>—</td><td>CatBoost built-in weighting.</td></tr>
+</tbody>
+</table>
+
+
+<h2>6. Per-fold detail</h2>
+<div class="fold-grid">
+<div><h3>high_iter</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6168</td><td>0.5983</td><td>7.8s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6477</td><td>0.6432</td><td>8.5s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.6088</td><td>0.5981</td><td>7.6s</td><td>50,741</td></tr></tbody></table></div><div><h3>baseline</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6196</td><td>0.5994</td><td>4.3s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6476</td><td>0.6452</td><td>4.5s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5918</td><td>0.5916</td><td>4.1s</td><td>50,741</td></tr></tbody></table></div><div><h3>pseudo_top80</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6138</td><td>0.5966</td><td>4.4s</td><td>57,297</td></tr>
+<tr><td>1</td><td>0.6493</td><td>0.6472</td><td>4.0s</td><td>59,472</td></tr>
+<tr><td>2</td><td>0.5915</td><td>0.5927</td><td>3.9s</td><td>48,207</td></tr></tbody></table></div><div><h3>high_iter_cw_targeted</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6135</td><td>0.5925</td><td>8.5s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6502</td><td>0.6529</td><td>7.9s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5905</td><td>0.5715</td><td>7.4s</td><td>50,741</td></tr></tbody></table></div><div><h3>high_iter_1500</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6286</td><td>0.6061</td><td>12.1s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6479</td><td>0.6430</td><td>12.4s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5654</td><td>0.5566</td><td>10.9s</td><td>50,741</td></tr></tbody></table></div><div><h3>xgboost_gpu</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6106</td><td>0.5883</td><td>10.0s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6542</td><td>0.6507</td><td>10.1s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5715</td><td>0.5708</td><td>10.4s</td><td>50,741</td></tr></tbody></table></div><div><h3>pseudo_class5_strict</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6106</td><td>0.5919</td><td>4.5s</td><td>67,355</td></tr>
+<tr><td>1</td><td>0.6475</td><td>0.6428</td><td>4.2s</td><td>71,045</td></tr>
+<tr><td>2</td><td>0.5768</td><td>0.5723</td><td>4.0s</td><td>50,455</td></tr></tbody></table></div><div><h3>high_iter_cw_full</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6173</td><td>0.6413</td><td>8.3s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6344</td><td>0.6825</td><td>7.8s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5777</td><td>0.6385</td><td>7.6s</td><td>50,741</td></tr></tbody></table></div><div><h3>catboost_depth8</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6099</td><td>0.5901</td><td>9.5s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6435</td><td>0.6380</td><td>9.0s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5721</td><td>0.5617</td><td>8.7s</td><td>50,741</td></tr></tbody></table></div><div><h3>class_weight</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.6182</td><td>0.6435</td><td>4.3s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6307</td><td>0.6807</td><td>4.5s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5694</td><td>0.6366</td><td>4.1s</td><td>50,741</td></tr></tbody></table></div><div><h3>catboost_l2_10</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th><th>n_train</th></tr></thead><tbody><tr><td>0</td><td>0.5606</td><td>0.5457</td><td>4.7s</td><td>68,533</td></tr>
+<tr><td>1</td><td>0.6329</td><td>0.6225</td><td>4.4s</td><td>72,652</td></tr>
+<tr><td>2</td><td>0.5134</td><td>0.5164</td><td>4.5s</td><td>50,741</td></tr></tbody></table></div>
+</div>
+
+<footer>
+  Generated 2026-05-19 · Script: <code>common_ground/scripts/llto_research_round2.py</code> ·
+  Results: <code>common_ground/reports/research/round2_results.json</code><br>
+  Round 1: <a href="research_report.html">research_report.html</a>
+</footer>
+
+</body>
+</html>

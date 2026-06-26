@@ -1,0 +1,120 @@
+{
+  "experiment": "schemeB_allyears_tabicl_deduped",
+  "stage2_model": "tabicl_n16",
+  "support_deduplication": "lon_lat_latest_year",
+  "stable_parquet": "grunnkart_nyvest_fscs_stable_allyears_alphaearth.parquet",
+  "n_stable_rows": 663740,
+  "alpha": 0.05,
+  "total_support": 25000,
+  "cls5_force": 4000,
+  "dedup_exempt_classes": [
+    12
+  ],
+  "merged_classes": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    10,
+    11,
+    12
+  ],
+  "n_classes": 10,
+  "elapsed_s": 1462.8,
+  "f1_mean": 0.6596,
+  "f1_std": 0.0136,
+  "bal_mean": 0.7098,
+  "f1_per_class": {
+    "2": 0.5367,
+    "3": 0.7536,
+    "4": 0.7042,
+    "5": 0.5541,
+    "6": 0.6288,
+    "7": 0.5994,
+    "8": 0.945,
+    "10": 0.811,
+    "11": 0.7435,
+    "12": 0.3201
+  },
+  "reference_f1": 0.6975,
+  "per_fold": [
+    {
+      "fold": 0,
+      "f1_macro": 0.6628,
+      "bal_acc": 0.7066,
+      "fit_s": 13.12,
+      "pred_s": 115.8,
+      "n_support": 25000,
+      "alpha": 0.05,
+      "tau": 0.94347,
+      "n_kept": 2294,
+      "pct_kept": 20.43,
+      "pseudo_acc": 0.9324,
+      "f1_per_class": [
+        0.5054,
+        0.7588,
+        0.7117,
+        0.5488,
+        0.6325,
+        0.6003,
+        0.9422,
+        0.8164,
+        0.7464,
+        0.3657
+      ]
+    },
+    {
+      "fold": 1,
+      "f1_macro": 0.6745,
+      "bal_acc": 0.7185,
+      "fit_s": 12.3,
+      "pred_s": 116.1,
+      "n_support": 25000,
+      "alpha": 0.05,
+      "tau": 0.94447,
+      "n_kept": 2450,
+      "pct_kept": 21.82,
+      "pseudo_acc": 0.9245,
+      "f1_per_class": [
+        0.5836,
+        0.7473,
+        0.7139,
+        0.5568,
+        0.6289,
+        0.6035,
+        0.945,
+        0.8099,
+        0.7517,
+        0.4043
+      ]
+    },
+    {
+      "fold": 2,
+      "f1_macro": 0.6416,
+      "bal_acc": 0.7042,
+      "fit_s": 12.31,
+      "pred_s": 116.16,
+      "n_support": 25000,
+      "alpha": 0.05,
+      "tau": 0.94313,
+      "n_kept": 2274,
+      "pct_kept": 20.25,
+      "pseudo_acc": 0.9305,
+      "f1_per_class": [
+        0.5211,
+        0.7547,
+        0.6869,
+        0.5566,
+        0.6249,
+        0.5945,
+        0.9478,
+        0.8066,
+        0.7323,
+        0.1902
+      ]
+    }
+  ]
+}

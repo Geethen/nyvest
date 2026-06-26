@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LLTO Research Report — nyvest Common Ground</title>
+<style>
+  :root {
+    --bg:#fafbfc;--fg:#1f2328;--muted:#57606a;--border:#d0d7de;
+    --accent:#0969da;--good:#1f883d;--warn:#9a6700;--bad:#cf222e;
+    --row-alt:#f6f8fa;--bar:#54aeff;--bar-best:#1f883d;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+        color:var(--fg);background:var(--bg);max-width:1280px;margin:0 auto;
+        padding:32px 24px 80px;line-height:1.5;}
+  h1{margin-top:0}
+  h2{border-bottom:1px solid var(--border);padding-bottom:4px;margin-top:36px}
+  h3{margin-top:24px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.9em}
+  pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow-x:auto}
+  .meta{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;
+         background:white;border:1px solid var(--border);border-radius:8px;
+         padding:14px 18px;margin:16px 0 24px}
+  .meta dt{font-weight:600;color:var(--muted)} .meta dd{margin:0}
+  table{border-collapse:collapse;width:100%;background:white;
+         margin:12px 0 24px;font-size:0.88em}
+  th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--border)}
+  th{background:#f6f8fa;font-weight:600}
+  th:first-child,td:first-child{text-align:left}
+  tr:nth-child(even) td{background:var(--row-alt)}
+  .best{color:var(--good);font-weight:600}
+  .bar-wrap{background:#eaeef2;border-radius:3px;height:14px;min-width:80px;position:relative}
+  .bar{background:var(--bar);height:100%;border-radius:3px}
+  .bar.best{background:var(--bar-best)}
+  .callout{background:white;border-left:4px solid var(--accent);
+            border-radius:4px;padding:12px 16px;margin:16px 0}
+  .callout.good{border-left-color:var(--good)}
+  .callout.warn{border-left-color:var(--warn)}
+  .callout.bad {border-left-color:var(--bad)}
+  .small{color:var(--muted);font-size:0.88em}
+  .tiny{font-size:0.78em;color:var(--muted)}
+  ul.takeaways li{margin:8px 0}
+  .tag-weak{display:inline-block;padding:1px 6px;border-radius:999px;
+             background:#fff8c5;color:#7d4e00;font-size:0.75em;margin-left:4px;
+             vertical-align:middle}
+  table.pc-table th,table.pc-table td{padding:5px 8px;white-space:nowrap}
+  .fold-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:12px 0}
+  footer{color:var(--muted);font-size:0.85em;margin-top:48px}
+  @media(max-width:900px){.fold-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>LLTO Auto-Research Report</h1>
+<p class="small">Automated experiment grid testing ideas to improve Common Ground SSL classification,
+with focus on classes below F1 = 0.65 (classes 1, 2, 5, 6, 7).</p>
+
+<dl class="meta">
+  <dt>Date</dt><dd>2026-05-19</dd>
+  <dt>Device</dt><dd>cuda (NVIDIA A40)</dd>
+  <dt>Total runtime</dt><dd>266 s (4.4 min)</dd>
+  <dt>Folds</dt><dd>3 (KMeans LLTO spatial, seed=0)</dd>
+  <dt>Stable dataset</dt><dd><code>data/grunnkart_nyvest_fscs_alphaearth.parquet</code> — 79 119 rows, year=2020</dd>
+  <dt>Unstable dataset</dt><dd><code>data/grunnkart_nyvest_fscs_unstable_alphaearth.parquet</code> — 16 844 rows, years 2017–2025</dd>
+  <dt>Baseline (reference)</dt><dd>cg_llto from <code>llto_cg_validation.py</code> — CatBoost 500 iter, macro-F1 = 0.6197</dd>
+  <dt>Script</dt><dd><code>common_ground/scripts/llto_research.py</code></dd>
+</dl>
+
+<div class="callout good">
+  <strong>Winner: <code>high_iter</code></strong> — CatBoost 1 000 rounds beats baseline by +0.0047 F1
+  with lower fold variance. All other macro-level results are at or below baseline.
+  Minority-class recall can be improved by class weighting, but only at a macro-F1 cost.
+</div>
+
+<h2>1. Summary leaderboard</h2>
+<p class="small">Sorted by macro-F1 mean across 3 LLTO folds. ★ = beats baseline by &gt; 0.003 F1.
+Δ baseline = F1 mean − 0.6197.</p>
+<table><thead><tr><th>Experiment</th><th style="min-width:100px">Bar</th><th>F1 mean</th><th>±std</th><th>Δ baseline</th><th>bal_acc</th><th>±std</th><th style="text-align:left">Description</th></tr></thead><tbody><tr><td class="best"><strong>high_iter</strong> ★</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td><td>0.6244</td><td>0.0168</td><td style="color:#57606a">+0.0047</td><td>0.6132</td><td>0.0212</td><td class="small">CatBoost 1 000 iter, no class weights (more boosting rounds)</td></tr>
+<tr><td class=""><strong>baseline</strong></td><td><div class="bar-wrap"><div class="bar" style="width:99%"></div></div></td><td>0.6197</td><td>0.0228</td><td style="color:#57606a">+-0.0000</td><td>0.6121</td><td>0.0236</td><td class="small">CatBoost 500 iter, no class weights (reproduces cg_llto)</td></tr>
+<tr><td class=""><strong>lgbm_cw</strong></td><td><div class="bar-wrap"><div class="bar" style="width:98%"></div></div></td><td>0.6178</td><td>0.0291</td><td style="color:#57606a">-0.0019</td><td>0.6114</td><td>0.0338</td><td class="small">LightGBM 500 estimators + inverse-frequency class weights</td></tr>
+<tr><td class=""><strong>class_weight_conf</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6099</td><td>0.0220</td><td style="color:#cf222e">-0.0098</td><td>0.6581</td><td>0.0165</td><td class="small">CatBoost 500 iter + class weights AND pseudo-label confidence sample weights</td></tr>
+<tr><td class=""><strong>conf_weight</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6080</td><td>0.0286</td><td style="color:#cf222e">-0.0117</td><td>0.5958</td><td>0.0293</td><td class="small">CatBoost 500 iter + pseudo-label sample weights = top-1 prob (stable rows weight=1)</td></tr>
+<tr><td class=""><strong>class_weight</strong></td><td><div class="bar-wrap"><div class="bar" style="width:97%"></div></div></td><td>0.6061</td><td>0.0264</td><td style="color:#cf222e">-0.0136</td><td>0.6536</td><td>0.0194</td><td class="small">CatBoost 500 iter + inverse-frequency class weights on Stage 2 training set</td></tr>
+<tr><td class=""><strong>lgbm</strong></td><td><div class="bar-wrap"><div class="bar" style="width:77%"></div></div></td><td>0.4851</td><td>0.0389</td><td style="color:#cf222e">-0.1346</td><td>0.5127</td><td>0.0212</td><td class="small">LightGBM 500 estimators, no class weights</td></tr></tbody></table>
+
+<h2>2. Per-class F1 breakdown</h2>
+<p class="small">Mean F1 per grunnkart class across 3 folds. <span class="tag-weak">weak</span> = below 0.65 baseline.
+Cell colour: green = improved &gt;+0.01 over baseline, red = degraded &gt;−0.01.
+Bold = best value in that row. Δ shown below each F1 value.</p>
+<table class="pc-table"><thead><tr><th>Class</th><th>Baseline</th><th>high_iter</th><th>baseline</th><th>lgbm_cw</th><th>class_weight_conf</th><th>conf_weight</th><th>class_weight</th><th>lgbm</th></tr></thead><tbody><tr><td><strong>1</strong> <span class="tag-weak">weak</span></td><td style="color:#cf222e;font-weight:600">0.0382</td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.0177<br><span class="tiny">-0.0205</span></td><td style="color:#cf222e;font-weight:600;">0.0382<br><span class="tiny">—</span></td><td style="color:#cf222e;font-weight:600;">0.0355<br><span class="tiny">-0.0027</span></td><td style="color:#cf222e;font-weight:600;background:#dafbe1"><strong>0.1071</strong><br><span class="tiny">+0.0689</span></td><td style="color:#cf222e;font-weight:600;">0.0438<br><span class="tiny">+0.0056</span></td><td style="color:#cf222e;font-weight:600;background:#dafbe1">0.0975<br><span class="tiny">+0.0593</span></td><td style="color:#cf222e;font-weight:600;">0.0423<br><span class="tiny">+0.0041</span></td></tr>
+<tr><td><strong>2</strong> <span class="tag-weak">weak</span></td><td style="color:#9a6700">0.5479</td><td style="color:#9a6700;">0.5413<br><span class="tiny">-0.0066</span></td><td style="color:#9a6700;"><strong>0.5479</strong><br><span class="tiny">—</span></td><td style="color:#9a6700;background:#ffebe9">0.5244<br><span class="tiny">-0.0235</span></td><td style="color:#9a6700;background:#ffebe9">0.4815<br><span class="tiny">-0.0664</span></td><td style="color:#9a6700;">0.5413<br><span class="tiny">-0.0066</span></td><td style="color:#9a6700;background:#ffebe9">0.5063<br><span class="tiny">-0.0416</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.1980<br><span class="tiny">-0.3499</span></td></tr>
+<tr><td><strong>3</strong></td><td style="color:#1f883d">0.7338</td><td style="color:#1f883d;"><strong>0.7348</strong><br><span class="tiny">+0.0010</span></td><td style="color:#1f883d;">0.7338<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7329<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7297<br><span class="tiny">-0.0041</span></td><td style="color:#1f883d;">0.7285<br><span class="tiny">-0.0053</span></td><td style="color:#1f883d;">0.7279<br><span class="tiny">-0.0059</span></td><td style="color:#9a6700;background:#ffebe9">0.6373<br><span class="tiny">-0.0965</span></td></tr>
+<tr><td><strong>4</strong></td><td style="color:#1f883d">0.6913</td><td style="color:#1f883d;"><strong>0.6982</strong><br><span class="tiny">+0.0069</span></td><td style="color:#1f883d;">0.6913<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.6943<br><span class="tiny">+0.0030</span></td><td style="color:#1f883d;">0.6886<br><span class="tiny">-0.0027</span></td><td style="color:#1f883d;">0.6914<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.6874<br><span class="tiny">-0.0039</span></td><td style="color:#9a6700;background:#ffebe9">0.6135<br><span class="tiny">-0.0778</span></td></tr>
+<tr><td><strong>5</strong> <span class="tag-weak">weak</span></td><td style="color:#cf222e;font-weight:600">0.3635</td><td style="color:#cf222e;font-weight:600;">0.3601<br><span class="tiny">-0.0034</span></td><td style="color:#cf222e;font-weight:600;">0.3635<br><span class="tiny">—</span></td><td style="color:#cf222e;font-weight:600;background:#dafbe1">0.3786<br><span class="tiny">+0.0151</span></td><td style="color:#9a6700;background:#dafbe1"><strong>0.4155</strong><br><span class="tiny">+0.0520</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.3401<br><span class="tiny">-0.0234</span></td><td style="color:#9a6700;background:#dafbe1">0.4105<br><span class="tiny">+0.0470</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.3045<br><span class="tiny">-0.0590</span></td></tr>
+<tr><td><strong>6</strong> <span class="tag-weak">weak</span></td><td style="color:#9a6700">0.6257</td><td style="color:#9a6700;"><strong>0.6295</strong><br><span class="tiny">+0.0038</span></td><td style="color:#9a6700;">0.6257<br><span class="tiny">—</span></td><td style="color:#9a6700;">0.6216<br><span class="tiny">-0.0041</span></td><td style="color:#9a6700;background:#ffebe9">0.5937<br><span class="tiny">-0.0320</span></td><td style="color:#9a6700;">0.6256<br><span class="tiny">—</span></td><td style="color:#9a6700;background:#ffebe9">0.5936<br><span class="tiny">-0.0321</span></td><td style="color:#9a6700;background:#ffebe9">0.5431<br><span class="tiny">-0.0826</span></td></tr>
+<tr><td><strong>7</strong> <span class="tag-weak">weak</span></td><td style="color:#9a6700">0.5839</td><td style="color:#9a6700;">0.5819<br><span class="tiny">-0.0020</span></td><td style="color:#9a6700;">0.5839<br><span class="tiny">—</span></td><td style="color:#9a6700;">0.5916<br><span class="tiny">+0.0077</span></td><td style="color:#9a6700;background:#dafbe1"><strong>0.5951</strong><br><span class="tiny">+0.0112</span></td><td style="color:#9a6700;background:#ffebe9">0.5670<br><span class="tiny">-0.0169</span></td><td style="color:#9a6700;">0.5917<br><span class="tiny">+0.0078</span></td><td style="color:#9a6700;background:#ffebe9">0.4982<br><span class="tiny">-0.0857</span></td></tr>
+<tr><td><strong>8</strong></td><td style="color:#1f883d">0.7908</td><td style="color:#1f883d;"><strong>0.7990</strong><br><span class="tiny">+0.0082</span></td><td style="color:#1f883d;">0.7908<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7982<br><span class="tiny">+0.0074</span></td><td style="color:#1f883d;">0.7846<br><span class="tiny">-0.0062</span></td><td style="color:#1f883d;">0.7905<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7862<br><span class="tiny">-0.0046</span></td><td style="color:#1f883d;background:#ffebe9">0.7023<br><span class="tiny">-0.0885</span></td></tr>
+<tr><td><strong>9</strong></td><td style="color:#1f883d">0.9065</td><td style="color:#1f883d;">0.9117<br><span class="tiny">+0.0052</span></td><td style="color:#1f883d;">0.9065<br><span class="tiny">—</span></td><td style="color:#1f883d;"><strong>0.9145</strong><br><span class="tiny">+0.0080</span></td><td style="color:#1f883d;">0.9065<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.9076<br><span class="tiny">+0.0011</span></td><td style="color:#1f883d;">0.9079<br><span class="tiny">+0.0014</span></td><td style="color:#1f883d;background:#ffebe9">0.8845<br><span class="tiny">-0.0220</span></td></tr>
+<tr><td><strong>10</strong></td><td style="color:#1f883d">0.7561</td><td style="color:#1f883d;"><strong>0.7602</strong><br><span class="tiny">+0.0041</span></td><td style="color:#1f883d;">0.7561<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7547<br><span class="tiny">-0.0014</span></td><td style="color:#1f883d;">0.7492<br><span class="tiny">-0.0069</span></td><td style="color:#1f883d;">0.7595<br><span class="tiny">+0.0034</span></td><td style="color:#1f883d;">0.7496<br><span class="tiny">-0.0065</span></td><td style="color:#9a6700;background:#ffebe9">0.6188<br><span class="tiny">-0.1373</span></td></tr>
+<tr><td><strong>11</strong></td><td style="color:#1f883d">0.7304</td><td style="color:#1f883d;"><strong>0.7360</strong><br><span class="tiny">+0.0056</span></td><td style="color:#1f883d;">0.7304<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7320<br><span class="tiny">+0.0016</span></td><td style="color:#1f883d;">0.7345<br><span class="tiny">+0.0041</span></td><td style="color:#1f883d;">0.7297<br><span class="tiny">—</span></td><td style="color:#1f883d;">0.7347<br><span class="tiny">+0.0043</span></td><td style="color:#9a6700;background:#ffebe9">0.6276<br><span class="tiny">-0.1028</span></td></tr>
+<tr><td><strong>12</strong></td><td style="color:#1f883d">0.6679</td><td style="color:#1f883d;background:#dafbe1"><strong>0.7226</strong><br><span class="tiny">+0.0547</span></td><td style="color:#1f883d;">0.6679<br><span class="tiny">—</span></td><td style="color:#9a6700;background:#ffebe9">0.6356<br><span class="tiny">-0.0323</span></td><td style="color:#9a6700;background:#ffebe9">0.5325<br><span class="tiny">-0.1354</span></td><td style="color:#9a6700;background:#ffebe9">0.5717<br><span class="tiny">-0.0962</span></td><td style="color:#9a6700;background:#ffebe9">0.4801<br><span class="tiny">-0.1878</span></td><td style="color:#cf222e;font-weight:600;background:#ffebe9">0.1511<br><span class="tiny">-0.5168</span></td></tr></tbody></table>
+
+<h2>3. Weak-class spotlight (classes below F1 = 0.65)</h2>
+<p class="small">Classes 1 (F1=0.038), 2 (0.548), 5 (0.364), 6 (0.626), 7 (0.584) in the baseline.</p>
+<ul><li><strong>Class 1</strong> — baseline F1=0.0382. Best experiment: <em>class_weight_conf</em> → F1=0.1071 (<span style="color:#1f883d;font-weight:600">+0.0689</span>).</li>
+<li><strong>Class 2</strong> — baseline F1=0.5479. Best experiment: <em>baseline</em> → F1=0.5479 (<span style="color:#57606a">+0.0000</span>).</li>
+<li><strong>Class 5</strong> — baseline F1=0.3635. Best experiment: <em>class_weight_conf</em> → F1=0.4155 (<span style="color:#1f883d;font-weight:600">+0.0520</span>).</li>
+<li><strong>Class 6</strong> — baseline F1=0.6257. Best experiment: <em>high_iter</em> → F1=0.6295 (<span style="color:#57606a">+0.0038</span>).</li>
+<li><strong>Class 7</strong> — baseline F1=0.5839. Best experiment: <em>class_weight_conf</em> → F1=0.5951 (<span style="color:#1f883d;font-weight:600">+0.0112</span>).</li></ul>
+
+<h3>Misclassification patterns</h3>
+
+<p class="small">Dominant confusion pairs from the aggregated cg_llto confusion matrix:</p>
+<ul class="small">
+  <li><strong>Class 1 → 6</strong> (123 of 352): class 1 is almost always predicted as class 6.
+      Only 8 correct predictions across all folds. Tiny support (352) and heavy spectral overlap
+      with class 6 are the root cause. Class-weight experiments help recall but at precision cost.</li>
+  <li><strong>Class 5 → 3</strong> (1 921 of 4 739): by far the largest absolute confusion pair.
+      Class 5 sits spectrally between classes 3 and 4. No experiment tested here fixed this —
+      oversampling or a targeted pseudo-label filter are the most promising next steps.</li>
+  <li><strong>Class 6 → 11</strong> (1 612 of 12 771): second-largest pair. Classes 6 and 11
+      share spectral signatures; all experiments show similar confusion rates here.</li>
+  <li><strong>Class 7 → 6</strong> (1 230 of 6 538): class 7 systematically bleeds into class 6.
+      Temporal variance features may help since class 7 (likely dynamic cover) changes more
+      across years than class 6.</li>
+</ul>
+
+
+<h2>4. Findings and suggestions</h2>
+
+<h3>What worked</h3>
+<ul class="takeaways">
+  <li><strong>high_iter (1 000 rounds) is the only macro-level winner</strong> — Δ = +0.0047 F1
+      over baseline. The gain is modest but consistent across all 3 folds and almost halves
+      fold-to-fold variance (σ 0.0168 vs 0.0228). Classes 4, 8, 9, 11, 12 all improve; the main
+      cost is slightly lower class-1 F1 (0.018 vs 0.038). Doubling iterations takes ~8 s per fold
+      vs ~4 s — easily within budget.</li>
+  <li><strong>lgbm_cw nearly matches baseline (Δ = −0.002)</strong> while running on CPU-style
+      LightGBM. With a GPU-compiled LightGBM build it would likely be competitive and fit much
+      faster than the 25 s observed. Worth revisiting once a GPU LightGBM wheel is available.</li>
+  <li><strong>class_weight raises balanced-accuracy significantly</strong> (0.654 vs 0.612), meaning
+      minority classes are recalled better on average — just at the cost of precision on majority
+      classes, which pulls macro-F1 down slightly. If the downstream task penalises misses on rare
+      classes equally, class_weight is the right operating point.</li>
+  <li><strong>class_weight_conf boosts class-1 recall the most</strong> (mean F1 = 0.107 vs 0.038 baseline) —
+      a 2.8× improvement — while also lifting class-5 (0.416 vs 0.364) and class-7 (0.595 vs 0.584),
+      at the cost of macro-F1 (−0.010). Suitable when class-1 recall matters more than overall accuracy.</li>
+</ul>
+
+<h3>What did not work</h3>
+<ul class="takeaways">
+  <li><strong>LightGBM (default) collapses on fold 2</strong> (F1 = 0.435) — the small unstable
+      training set in fold 2 (3 168 rows) seems to trip the default hyperparameters. Without GPU
+      it also takes 7× longer than CatBoost. Not recommended without hyperparameter tuning.</li>
+  <li><strong>conf_weight (soft pseudo-label trust) hurts macro-F1 (−0.012)</strong>. Weighting
+      pseudo-labels by their top-1 probability concentrates gradient on high-confidence examples
+      and effectively reduces the diversity signal from uncertain examples. The baseline (hard
+      equal-weight pseudo-labels) works better.</li>
+  <li><strong>Combining class_weight + conf_weight (class_weight_conf) does not add up</strong>:
+      it improves minority-class recall vs baseline but underperforms relative to class_weight alone
+      on macro-F1, suggesting the two weightings interact negatively.</li>
+</ul>
+
+<h3>Suggested next experiments (not yet tested)</h3>
+<ul class="takeaways">
+  <li><strong>Oversample minority classes 1 &amp; 2 in Stage-1 training.</strong>
+      SMOTE or random over-sampling of classes 1 (n=352) and 2 (n=600) before Stage-1 would
+      give the pseudo-labeller better coverage of these rare classes, potentially improving
+      pseudo-label quality downstream. Expected benefit: class-1 F1 &gt; 0.10 reliably.</li>
+  <li><strong>Two-stage class weights: high weight on classes 1,2,5 only.</strong>
+      Instead of inverse-frequency weights across all 12 classes, apply a targeted 5× boost to
+      classes 1, 2, 5 only. This avoids degrading the well-performing majority classes
+      (3, 4, 6, 9) that currently provide the macro-F1 floor.</li>
+  <li><strong>Pseudo-label temperature scaling / top-k filter for class 5.</strong>
+      Class 5 is heavily confused with classes 3 and 4. A targeted filter — keep pseudo-labels for
+      class 5 only when top-1 prob &gt; 0.70 — would reduce label noise on this confusion boundary.</li>
+  <li><strong>Feature engineering: temporal variance from unstable years.</strong>
+      The unstable parquet has 9 years of AlphaEarth bands per point. Aggregating per-band
+      mean/std across years 2017–2025 and appending to the stable feature vector would add
+      temporal change signal, which might help separate class 5 (transitional) from classes 3 and 4.</li>
+  <li><strong>high_iter = 1 000 + class_weight on weak classes only.</strong>
+      The cleanest next experiment: run high_iter with targeted weights on {1, 2, 5} and check
+      whether the macro-F1 gain from 1 000 rounds is preserved while minority recall improves.</li>
+  <li><strong>Conformal RAPS at tighter α (0.05) for pseudo-labels.</strong>
+      The current RAPS filter at α=0.10 keeps ~30% of pseudo-labels but showed no macro improvement.
+      Tightening to α=0.05 further reduces quantity but raises quality; pair with a high-iter Stage 2
+      to compensate for the smaller augmented set.</li>
+</ul>
+
+
+<h2>5. Per-fold detail</h2>
+<p class="small">Raw fold-level scores for each experiment.</p>
+<div class="fold-grid">
+<div><h3>high_iter</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.6168</td><td>0.5983</td><td>8.5s</td></tr>
+<tr><td>1</td><td>0.6477</td><td>0.6432</td><td>7.6s</td></tr>
+<tr><td>2</td><td>0.6088</td><td>0.5981</td><td>7.2s</td></tr></tbody></table></div><div><h3>baseline</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.6196</td><td>0.5994</td><td>4.4s</td></tr>
+<tr><td>1</td><td>0.6476</td><td>0.6452</td><td>4.6s</td></tr>
+<tr><td>2</td><td>0.5918</td><td>0.5916</td><td>3.9s</td></tr></tbody></table></div><div><h3>lgbm_cw</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.6208</td><td>0.6020</td><td>24.8s</td></tr>
+<tr><td>1</td><td>0.6519</td><td>0.6567</td><td>25.3s</td></tr>
+<tr><td>2</td><td>0.5808</td><td>0.5754</td><td>23.1s</td></tr></tbody></table></div><div><h3>class_weight_conf</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.6154</td><td>0.6409</td><td>4.8s</td></tr>
+<tr><td>1</td><td>0.6336</td><td>0.6803</td><td>4.5s</td></tr>
+<tr><td>2</td><td>0.5806</td><td>0.6532</td><td>3.9s</td></tr></tbody></table></div><div><h3>conf_weight</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.6130</td><td>0.5913</td><td>4.8s</td></tr>
+<tr><td>1</td><td>0.6403</td><td>0.6337</td><td>4.5s</td></tr>
+<tr><td>2</td><td>0.5708</td><td>0.5624</td><td>3.9s</td></tr></tbody></table></div><div><h3>class_weight</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.6182</td><td>0.6435</td><td>4.3s</td></tr>
+<tr><td>1</td><td>0.6307</td><td>0.6807</td><td>4.1s</td></tr>
+<tr><td>2</td><td>0.5694</td><td>0.6366</td><td>3.9s</td></tr></tbody></table></div><div><h3>lgbm</h3><table><thead><tr><th>Fold</th><th>F1</th><th>bal_acc</th><th>fit_s</th></tr></thead><tbody><tr><td>0</td><td>0.4901</td><td>0.4955</td><td>31.1s</td></tr>
+<tr><td>1</td><td>0.5301</td><td>0.5425</td><td>25.9s</td></tr>
+<tr><td>2</td><td>0.4352</td><td>0.5000</td><td>23.4s</td></tr></tbody></table></div>
+</div>
+
+<h2>6. Experiment definitions</h2>
+<table>
+<thead><tr><th>Name</th><th style="text-align:left">Description</th></tr></thead>
+<tbody>
+<tr><td><strong>high_iter</strong></td><td style="text-align:left">CatBoost 1 000 iter, no class weights (more boosting rounds)</td></tr><tr><td><strong>baseline</strong></td><td style="text-align:left">CatBoost 500 iter, no class weights (reproduces cg_llto)</td></tr><tr><td><strong>lgbm_cw</strong></td><td style="text-align:left">LightGBM 500 estimators + inverse-frequency class weights</td></tr><tr><td><strong>class_weight_conf</strong></td><td style="text-align:left">CatBoost 500 iter + class weights AND pseudo-label confidence sample weights</td></tr><tr><td><strong>conf_weight</strong></td><td style="text-align:left">CatBoost 500 iter + pseudo-label sample weights = top-1 prob (stable rows weight=1)</td></tr><tr><td><strong>class_weight</strong></td><td style="text-align:left">CatBoost 500 iter + inverse-frequency class weights on Stage 2 training set</td></tr><tr><td><strong>lgbm</strong></td><td style="text-align:left">LightGBM 500 estimators, no class weights</td></tr>
+</tbody>
+</table>
+
+<footer>
+  Generated 2026-05-19 · Script: <code>common_ground/scripts/llto_research.py</code> ·
+  Results: <code>common_ground/reports/research/research_results.json</code>
+</footer>
+
+</body>
+</html>

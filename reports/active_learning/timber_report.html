@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timber vs Native Inference — Nature-type Active Learning</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--ink:#e8eaf0;--mut:#9aa3b2;--line:#262b35;
+        --good:#3fb950;--bad:#f85149;--warn:#d29922;--accent:#58a6ff;--accent2:#bc8cff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.3px}
+  h2{font-size:21px;margin:42px 0 14px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--accent)}
+  .sub{color:var(--mut);font-size:14px;margin-bottom:8px}
+  .lede{font-size:16.5px;color:#cfd6e4;background:var(--panel);border-left:3px solid var(--accent);
+        padding:16px 20px;border-radius:0 8px 8px 0;margin:18px 0}
+  p{margin:10px 0}
+  code{background:#1d222c;padding:2px 6px;border-radius:5px;font-size:13px;color:#ffd9a0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace,monospace}
+  tr:hover td{background:#1b1f28}
+  .win{color:var(--good);font-weight:600}.lose{color:var(--bad);font-weight:600}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.go{background:rgba(63,185,80,.15);color:var(--good)}
+  .pill.no{background:rgba(248,81,73,.15);color:var(--bad)}
+  .pill.warn{background:rgba(210,153,34,.15);color:var(--warn)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:16px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .card .big{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+  .card .lbl{color:var(--mut);font-size:13px;margin-top:2px}
+  .card.good{border-color:rgba(63,185,80,.4)} .card.bad{border-color:rgba(248,81,73,.4)}
+  .card.accent{border-color:rgba(88,166,255,.4)}
+  .bar{height:22px;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+  .barrow{display:grid;grid-template-columns:200px 1fr 92px;gap:10px;align-items:center;margin:6px 0;font-size:13.5px}
+  .barbg{background:#1d222c;border-radius:5px;overflow:hidden}
+  ul{margin:8px 0 8px 2px;padding-left:20px}li{margin:5px 0}
+  .foot{color:var(--mut);font-size:12.5px;margin-top:50px;border-top:1px solid var(--line);padding-top:16px}
+  a{color:var(--accent)} .src{font-size:12px;color:var(--mut)}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:720px){.twocol{grid-template-columns:1fr}.barrow{grid-template-columns:120px 1fr 78px}}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Timber vs Native Inference</h1>
+<div class="sub">Decision report for the nature-type active-learning app · Vestland, Norway · A40 / Linux · 2026-06-22</div>
+
+<div class="lede">
+<b>Bottom line.</b> Timber's compiled-C inference is genuinely transformative for
+<i>single-sample</i> latency on scalar-leaf models (we reproduced <b>850×</b> over XGBoost).
+But this app's hot paths are <i>batched</i> — ranking a 75k-location pool (~0.1&nbsp;s) and a
+954k-pixel dense raster tile (5.6&nbsp;s) — and its model is a <b>CatBoost multiclass</b>
+classifier, which Timber 0.6.0 <b>cannot compile at all</b> (its tree IR has no vector-leaf
+representation). In the batch regime, native inference is competitive-to-faster even for the
+models Timber <i>can</i> compile. <span class="pill no">Decision: native CatBoost</span>
+&nbsp;Timber is kept as a pluggable <code>--backend</code> seam for a future single-sample / edge deployment.
+</div>
+
+<h2>1 · The two regimes that decide everything</h2>
+<p>Timber compiles a tree model to C99 and runs it via a thin ctypes wrapper. The
+blog post (<a href="https://geethen.github.io/#/blog/timber-native-c-inference">geethen.github.io</a>)
+measured an XGBoost binary classifier and made the key distinction explicit:</p>
+<div class="grid">
+  <div class="card accent"><div class="big">~12&nbsp;µs</div><div class="lbl">Python⇄C ctypes bridge cost — paid <i>once per call</i>, regardless of batch size</div></div>
+  <div class="card accent"><div class="big">0.09&nbsp;µs</div><div class="lbl">Blog's raw compiled tree math (single sample, called from C)</div></div>
+</div>
+<p>So the speedup you actually get depends entirely on <b>how many samples ride on one
+bridge crossing</b>:</p>
+<ul>
+  <li><b>Single sample</b> → the 12&nbsp;µs bridge is dwarfed by Python/XGBoost's own
+  setup (hundreds of µs to ms). Timber wins enormously. <span class="src">Blog: 64× (Mac/Win); ours: 850× on Linux.</span></li>
+  <li><b>Large batch</b> → the bridge cost is amortised to near-zero per sample, but so is
+  the native library's — and an optimised batch predictor (XGBoost 3.x, CatBoost) has no
+  Python-per-row overhead to begin with. The advantage collapses or reverses.</li>
+</ul>
+
+<h2>2 · Reproducing the blog: XGBoost binary (scalar-leaf)</h2>
+<p>This is Timber's good case — a binary classifier whose leaves are single scalars,
+exactly what the blog tested. We trained the same shape (50 trees, depth 4) on the 64-band
+AlphaEarth features (class 8 = water, one-vs-rest) and benchmarked on this box.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>Timber (via Python)</th><th>Native XGBoost</th><th>Winner</th></tr></thead>
+<tbody>
+<tr><td>Single sample (1 row)</td><td class="num">9.7 µs</td><td class="num">8284 µs</td><td><span class="win">Timber 850×</span></td></tr>
+<tr><td>Batch pool, 75k rows (per-sample)</td><td class="num">0.64 µs</td><td class="num">0.25 µs</td><td><span class="lose">XGBoost 2.6×</span></td></tr>
+<tr><td>Batch pool, 75k rows (total)</td><td class="num">47.7 ms</td><td class="num">18.6 ms</td><td><span class="lose">XGBoost</span></td></tr>
+<tr><td>Label agreement</td><td class="num" colspan="2" style="text-align:center">100.0%</td><td><span class="win">identical</span></td></tr>
+<tr><td>Max abs probability error</td><td class="num" colspan="2" style="text-align:center">0.098</td><td><span class="pill warn">quantization</span></td></tr>
+</tbody>
+</table>
+<p><b>This confirms <i>and</i> extends the blog.</b> The 850× single-sample win is real and
+larger than the blog's 64× (Linux's ctypes bridge is cheaper than the blog's Windows box).
+But in the <i>batch</i> regime the blog reported Timber slightly ahead (0.40 vs 1.61 µs);
+with <b>XGBoost 3.2</b>'s faster batch path, native XGBoost is now ~2.6× ahead of Timber per
+sample. The crossover has moved further toward "batch ⇒ use native". The 0.098 max-prob
+error is Timber's threshold quantization, exactly as the blog's <code>timber validate</code>
+section warns — harmless for argmax/ranking, relevant if you consume raw probabilities.</p>
+
+<h2>3 · Our actual model: CatBoost multiclass (vector-leaf)</h2>
+<p>The app's classifier is a 10-class CatBoost (<code>loss_function="MultiClass"</code>).
+This is <b>not</b> the blog's case, and Timber cannot handle it:</p>
+<div class="grid">
+  <div class="card bad"><div class="big">✗ won't compile</div><div class="lbl"><code>TypeError: 'int' object is not subscriptable</code> at <code>catboost_parser.py:68</code></div></div>
+  <div class="card"><div class="big">160 ≠ 16</div><div class="lbl">A 16-leaf multiclass tree stores <b>160</b> leaf values (16×10). Timber's IR holds <b>one scalar</b> per leaf — no vector-leaf representation.</div></div>
+</div>
+<p>Two distinct blockers, both structural rather than configuration:</p>
+<ul>
+  <li><b>Parse crash.</b> CatBoost writes <code>scale_and_bias = [1, [0,…]]</code> (scalar
+  scale + per-class bias vector); the parser indexes <code>bias_data[0][0]</code> and hits the
+  int. Affects binary CatBoost too (<code>[1,[0]]</code>).</li>
+  <li><b>No vector leaves.</b> Even past the crash, multiclass needs per-class leaf
+  accumulation + softmax. Timber's <code>Tree</code>/<code>TreeNode</code> IR and C codegen are
+  single-output. The blog's own "CatBoost multiclass caveat" anticipates this — it is the
+  one combination the blog flagged but did not benchmark. We confirmed it empirically.</li>
+</ul>
+
+<h3>We tested the obvious workaround — and it fails on accuracy</h3>
+<p>Binary one-vs-rest <i>is</i> scalar-leaf, so we patched the JSON
+(<code>[1,[0]]→[[1.0],[0.0]]</code>) to get Timber to compile a binary CatBoost. It ran, but
+its output was <b>numerically wrong</b>: <code>max|sigmoid(timber) − P(class=1)| = 0.50</code>
+— a leaf-indexing mismatch in Timber's oblivious-tree parser. So even a 10×-OvR Timber map
+would be corrupt, on top of being slower in batch. <span class="pill no">workaround rejected</span></p>
+
+<h2>4 · What this app's workload actually costs (native)</h2>
+<p>The app's live model is <b>native XGBoost</b> (CPU, multi:softprob). It is designed so
+model scoring never blocks the labeller — the UI reads a pre-ranked queue and rescoring
+happens in batch. Measured on the A40 box:</p>
+<div class="barrow"><div>Rescore 75k pool (proba)</div><div class="barbg"><div class="bar" style="width:9%"></div></div><div class="num">141 ms</div></div>
+<div class="barrow"><div>Rescore 75k + APS set-size</div><div class="barbg"><div class="bar" style="width:10%"></div></div><div class="num">157 ms</div></div>
+<div class="barrow"><div>Fast retrain (15k, 150 it, 1-split)</div><div class="barbg"><div class="bar" style="width:69%"></div></div><div class="num">10.8 s</div></div>
+<div class="barrow"><div>Dense tile 954k px (class+unc)</div><div class="barbg"><div class="bar" style="width:36%"></div></div><div class="num">5.6 s</div></div>
+<p class="src">Per-sample on the 75k pool: CatBoost multiclass = 1.9 µs/row (10 classes + APS).
+Dense raster ≈ 170k px/s ⇒ all 154 tiles ≈ 15 min single-threaded.</p>
+<p>None of these is single-sample-latency-bound. The one path a user waits on synchronously
+is the <b>fast retrain</b> (10.8&nbsp;s), and that cost is <i>CatBoost training</i>, which Timber
+does not touch — Timber only accelerates inference, which is already 0.1&nbsp;s.</p>
+
+<h2>5 · Synthesis — blog insights × AL-guidance × our findings</h2>
+<div class="twocol">
+<div>
+<h3>From the blog (validated here)</h3>
+<ul>
+  <li>The C math is ~90 ns; <b>Python wrapping is the real cost</b>. ✔ reproduced (12 µs bridge).</li>
+  <li><b>Batch your data</b> to amortise the bridge. ✔ — and at large batch, native catches up.</li>
+  <li><b>float32 inputs</b>, contiguous. ✔ already how tiles + pool are fed.</li>
+  <li><b>Skip <code>timber serve</code></b> (HTTP adds ~2 s/req); use the in-process predictor. ✔</li>
+  <li>Quantization shifts probabilities slightly (≤0.025 in blog; 0.098 here). ✔ ranking-safe, proba-risky.</li>
+</ul>
+</div>
+<div>
+<h3>From the AL-guidance doc (adopted in the app)</h3>
+<ul>
+  <li><b>Pre-ranked ready queue</b>, never score the pool synchronously on label submit. ✔ <code>predictions.parquet</code>.</li>
+  <li><b>Rescore asynchronously</b> after labels/retrain; store score + model version. ✔</li>
+  <li><b>Compact ranking signal</b> over full probabilities — here the APS prediction-set size <i>is</i> the acquisition score <i>and</i> the map's uncertainty layer (one computation, two uses).</li>
+  <li><b>Benchmark each model family + output mode separately</b> before promising latency. ✔ this report.</li>
+  <li><b>Decision rule:</b> if a Timber change doesn't cut queue-refresh / label-to-next-item time, batching &amp; caching matter more. ✔ — queue refresh is already 0.1 s.</li>
+</ul>
+</div>
+</div>
+
+<h3>Unique findings (not in the blog)</h3>
+<ul>
+  <li>Timber 0.6.0 <b>cannot represent CatBoost multiclass</b> (vector-leaf) — the blog's
+  untested caveat, now confirmed with the exact crash + the 160-vs-16 leaf-count evidence.</li>
+  <li>The binary-OvR escape hatch is <b>numerically broken</b> (0.50 prob error), not just slow —
+  a leaf-indexing bug in Timber's oblivious-tree parser.</li>
+  <li>With <b>XGBoost 3.2</b>, native batch predict now <b>beats</b> Timber-via-Python per-sample
+  (0.25 vs 0.64 µs) — the blog's narrow batch win has reversed on current libraries/hardware.</li>
+  <li><b>Timber on the REAL 10-class XGBoost model + tile</b> (not the synthetic binary): compiles,
+  but argmax disagrees <b>5.5%</b> (max prob err 0.248) — 1 in 18 pixels mislabelled — and the
+  full tile takes <b>184 s vs native 6.8 s (27× slower)</b>. The synthetic binary case flattered
+  Timber on both accuracy and speed; on the real deep multiclass model it is a wrong map AND far
+  slower. Conclusive.</li>
+  <li>The real dense-predict bottleneck is plain tree traversal (~6.8 s one-shot/tile); sklearn
+  <code>predict_proba</code>, <code>inplace_predict</code>, and prebuilt-DMatrix predict are all
+  equal — there is no wrapper trick (a "0.03 s" reading was a cached-DMatrix artifact).</li>
+</ul>
+
+<h2>6 · Why GPU XGBoost won't run here (and it's not fixable)</h2>
+<p>The app's model is now <b>native XGBoost</b>. The obvious "just use the GPU" acceleration
+is a <b>dead end on this box</b> — and the reason is specific, not a config slip:</p>
+<div class="grid">
+  <div class="card bad"><div class="big">A40-<b>24Q</b></div><div class="lbl">A vGPU profile. <code>nvidia-smi -q</code> → <code>Virtualization Mode: VGPU</code>.</div></div>
+  <div class="card bad"><div class="big">VMM = 0</div><div class="lbl"><code>cuDeviceGetAttribute(VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED)</code> returns <b>0</b> — the vGPU disables CUDA Virtual Memory Management.</div></div>
+  <div class="card accent"><div class="big">torch ✓</div><div class="lbl">torch CUDA matmul works on the same vGPU — it uses legacy <code>cudaMalloc</code>, not VMM.</div></div>
+</div>
+<p>XGBoost 2.x+ allocates GPU memory through the CUDA <b>VMM API</b> (<code>cuMemCreate</code> /
+<code>cuMemGetAllocationGranularity</code> / <code>cuMemMap</code>) and probes it at GPU init.
+On this vGPU that probe fails: <code>cuMemGetAllocationGranularity … CUDA_ERROR_NOT_SUPPORTED</code>
+(at <code>cuda_dr_utils.cc:92</code>). It fails with <code>device="cpu"</code>, with
+<code>CUDA_VISIBLE_DEVICES=""</code>, and with <code>use_rmm=True</code> — the VMM probe runs
+<i>before</i> any allocator is consulted. (Practical fix that <i>is</i> needed: the default CUDA
+<code>xgboost</code> wheel even crashes on CPU init for the same reason — install
+<code>xgboost-cpu</code>, which has no CUDA code to probe.)</p>
+
+<h3>Alternative build that DOES use the vGPU: xgboost 1.7.6</h3>
+<p>The VMM allocator was added in XGBoost 2.0. <b>xgboost 1.7.6</b> (last 1.x) predates it and
+uses the legacy caching <code>cudaMalloc</code> — torch's path. Tested on this vGPU:
+<span class="pill go">it works</span>. On the real data (74k×64, n300 d6):
+GPU <b>fit 8.2 s vs CPU 22.4 s — 2.7× faster training</b>. But GPU <i>predict</i> is not faster
+(transfer overhead: 0.5 s GPU vs 0.04 s CPU predictor on the tile), and <code>gpu_hist</code>
+builds different trees than <code>hist</code>. <b>Not adopted:</b> 1.7.6 is EOL, pinning it would
+drag the whole shared venv back to 1.x, and the only win is fit-time — and live retrain (~10 s)
+isn't the bottleneck. Kept as the documented escape hatch if training time ever dominates.</p>
+
+<h2>7 · Accelerations for a tree model (what actually moves the needle)</h2>
+<p>Levers benchmarked on the real tile + an XGBoost model (the ensemble-size finding carries
+to CatBoost — both are CPU-predict tree ensembles; depth/n_estimators set the cost):</p>
+<table>
+<thead><tr><th>Lever</th><th>Result</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>predict path: sklearn vs <code>inplace_predict</code> vs DMatrix</td><td class="num">all ~13 s / 954k-px tile</td><td><span class="pill no">not a lever</span></td></tr>
+<tr><td>thread count</td><td>predict already saturates all cores by default</td><td><span class="pill no">not a lever</span></td></tr>
+<tr><td><b>ensemble size</b> (n_estimators × depth)</td><td>see curve below</td><td><span class="pill go">the lever</span></td></tr>
+</tbody>
+</table>
+<h3>Model-size sweep — holdout F1 vs dense-predict time</h3>
+<table>
+<thead><tr><th>config</th><th>holdout macro-F1</th><th>full-tile predict</th><th>px/s</th><th>note</th></tr></thead>
+<tbody>
+<tr><td>n500 d6 (was)</td><td class="num">0.6932</td><td class="num">21 s</td><td class="num">45k</td><td>baseline</td></tr>
+<tr><td><b>n300 d6 (now)</b></td><td class="num">0.6916</td><td class="num">12 s</td><td class="num">79k</td><td><span class="win">1.8× faster, −0.0016 F1 (noise)</span></td></tr>
+<tr><td>n200 d6</td><td class="num">0.6897</td><td class="num">7.8 s</td><td class="num">122k</td><td>2.7×, −0.0035</td></tr>
+<tr><td>n200 d5</td><td class="num">0.6837</td><td class="num">6.3 s</td><td class="num">151k</td><td>3.4×, −0.0095</td></tr>
+<tr><td>n150 d4</td><td class="num">0.6759</td><td class="num">3.9 s</td><td class="num">243k</td><td>5.5×, −0.017 (depth hurts)</td></tr>
+</tbody>
+</table>
+<p><b>n300 d6</b> is the chosen size (carried into the CatBoost model in §8): ~half the
+dense-prediction time of n500 for a noise-level F1 change. Reducing depth below 6 trades real
+F1, so n_estimators is the free knob; depth is not. The live loop (pool rescore ≈0.1 s) was
+never the constraint. (Note: on XGBoost this tile was ~12 s; the §8 switch to CatBoost cuts it
+to 5.7 s windowed.)</p>
+
+<h2>8 · CatBoost vs XGBoost head-to-head (real data) — and the final pick</h2>
+<p>Because the workflow has <b>many train cycles</b>, we benchmarked both libraries, CPU and
+GPU, on the real data (74k×64, n300 d6, GroupKFold holdout). The decisive column is the
+5-fold cross-conformal time (5 fits — the dominant per-retrain cost) and the dense-tile predict.</p>
+<table>
+<thead><tr><th>model</th><th>1 fit</th><th>holdout F1</th><th>5-fold cross-conformal</th><th>dense tile predict</th></tr></thead>
+<tbody>
+<tr><td>XGBoost 1.7.6 CPU</td><td class="num">17.6 s</td><td class="num">0.6903</td><td class="num">80 s</td><td class="num">~12 s</td></tr>
+<tr><td>XGBoost 1.7.6 GPU</td><td class="num">7.6 s</td><td class="num">0.6879</td><td class="num">36 s</td><td class="num">~12 s</td></tr>
+<tr><td>CatBoost CPU</td><td class="num">18.0 s</td><td class="num">0.6892</td><td class="num">76 s</td><td class="num">~5.6 s</td></tr>
+<tr><td><b>CatBoost GPU</b></td><td class="num"><b>2.6 s</b></td><td class="num">0.6857</td><td class="num"><b>14.5 s</b></td><td class="num"><b>0.7 s</b>¹</td></tr>
+</tbody>
+</table>
+<p><b>CatBoost GPU wins both axes</b>: ~3× faster training than XGBoost GPU <i>and</i> its
+symmetric-tree CPU predict is ~17× faster on a dense tile (XGBoost GPU predict is no faster
+than CPU — transfer overhead). F1 is within noise across all four (0.686–0.690). CatBoost GPU
+also sidesteps the vGPU VMM problem entirely (its own allocator), so no EOL-1.7.6 / dask
+baggage. <span class="src">¹ 0.7 s one-shot; 5.7 s through the block-windowed raster writer
+(now I/O-bound, not the model).</span></p>
+
+<h2>9 · Recommendation (adopted)</h2>
+<p><span class="pill go">CatBoost, GPU-trained / CPU-predicted, n300 d6</span> for the seed
+model, live retrain, and dense raster. Measured end-to-end after the switch: seed build
+<b>23.5 s</b> (was 151 s on XGBoost CPU), fast retrain <b>4.0 s</b>, dense tile <b>5.7 s</b>
+(all 154 tiles ≈15 min), pool rescore 0.1 s. <code>NYVEST_AL_DEVICE=CPU</code> forces CPU if
+the GPU is busy. <b>XGBoost is not used</b> (2.x+ GPU can't run on this vGPU; 1.7.6 GPU works
+but is EOL and slower than CatBoost GPU anyway). Keep the <code>--backend {native,timber}</code>
+seam in <code>predict_raster.py</code>; revisit Timber only for a single-sample-latency edge
+deployment (its win is single-sample, never batch — and on the real multiclass model it is
+both 27× slower and 5.5% wrong).</p>
+
+<div class="foot">
+Sources: blog — <a href="https://geethen.github.io/#/blog/timber-native-c-inference">"Your Random Forest Runs in 0.09 Microseconds Now"</a>;
+Timber — <a href="https://github.com/kossisoroyce/timber">kossisoroyce/timber</a> v0.6.0 (Apache-2.0).
+Benchmark data: <code>reports/active_learning/timber_benchmark.json</code>; full spike notes:
+<code>reports/active_learning/timber_spike.md</code>. Model-size sweep + GPU/VMM diagnosis
+2026-06-22 on the A40-24Q vGPU / Linux, 8-core CPU, real median-size tile (954k valid px),
+64 AlphaEarth bands. App model: CatBoost 1.2.10, GPU-trained / CPU-predicted, n300 d6.
+</div>
+
+</div></body></html>
