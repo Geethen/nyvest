@@ -23,6 +23,10 @@ The retained baseline JSONs are the high-F1 comparison points around the same fa
 - [scripts/extraction/extract_lidar_features.py](scripts/extraction/extract_lidar_features.py) - extracts the retained 3 m lidar features.
 - [scripts/feature_probe_lidar.py](scripts/feature_probe_lidar.py) - documents/probes why `elevation`, `tri`, and `tch` are kept.
 
+## Active Learning
+
+Active-learning app files are kept separately under [active_learning](active_learning). That folder contains the Streamlit/Folium labeling app, seed-model training utilities, prediction/raster helpers, model metadata, and the timber benchmark notes from the app spike. Runtime labels, predictions, CatBoost model binaries, APS calibration arrays, and regenerated map rasters are ignored by git.
+
 ## Reproduce The Best Run
 
 ```bash

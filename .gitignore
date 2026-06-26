@@ -32,10 +32,20 @@ data/**/*.checkpoint.json
 models/*.cbm
 models/*.npz
 models/*.json
+active_learning/models/*.cbm
+active_learning/models/*.npz
+
+# Active-learning runtime data
+active_learning/data/*.parquet
+active_learning/data/**/*.parquet
+active_learning/data/*.checkpoint.json
+active_learning/data/**/*.checkpoint.json
 
 # Generated raster/map outputs
 reports/active_learning/*.tif
 reports/active_learning/*.png
+active_learning/reports/*.tif
+active_learning/reports/*.png
 
 # Large intermediate research artifacts
 common_ground/reports/**/*.npz

@@ -1,0 +1,18 @@
+{
+  "xgb_compile_rc": 0,
+  "xgb_label_agree_%": 100.0,
+  "xgb_maxabs_prob_err": 0.09781860560178757,
+  "xgb_timber_1row_us": 9.74052818492055,
+  "xgb_xgb_1row_us": 8283.97343866527,
+  "xgb_timber_pool_ms": 47.72618098650128,
+  "xgb_xgb_pool_ms": 18.55142298154533,
+  "xgb_timber_persample_us": 0.636349079820017,
+  "xgb_xgb_persample_us": 0.24735230642060438,
+  "cb_mc_timber": "TypeError: 'int' object is not subscriptable",
+  "cb_mc_proba_pool_ms": 141.44703303463757,
+  "cb_mc_full_pool_ms": 156.74459002912045,
+  "cb_mc_persample_us": 1.8859604404618342,
+  "dense_tile_px": 954000,
+  "dense_tile_s": 5.6,
+  "pool_size": 75000
+}
