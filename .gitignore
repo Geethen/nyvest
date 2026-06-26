@@ -20,3 +20,23 @@ geo/
 # Experiment tracking / large outputs
 wandb/
 *.log
+catboost_info/
+
+# Generated data and checkpoints
+data/*.parquet
+data/**/*.parquet
+data/*.checkpoint.json
+data/**/*.checkpoint.json
+
+# Generated model artifacts
+models/*.cbm
+models/*.npz
+models/*.json
+
+# Generated raster/map outputs
+reports/active_learning/*.tif
+reports/active_learning/*.png
+
+# Large intermediate research artifacts
+common_ground/reports/**/*.npz
+reports/*.npz

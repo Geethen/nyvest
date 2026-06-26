@@ -1,4 +1,0 @@
-model,fold,n_train_used,n_val_used,train_time_s,val_time_s,f1_macro,balanced_accuracy,peak_mem_mb
-xgboost,0,442493,221247,140.04,6.48,0.6524,0.6388,2094.0
-xgboost,1,442495,221245,137.12,8.15,0.6593,0.6409,2152.0
-xgboost,2,442492,221248,142.0,6.34,0.6423,0.6356,2217.0
