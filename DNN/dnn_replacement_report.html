@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DNN replacement — best model (F1 0.734)</title>
+<style>
+  :root {
+    --bg: #fafbfc;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --accent: #0969da;
+    --good: #1f883d;
+    --warn: #9a6700;
+    --bad: #cf222e;
+    --row-alt: #f6f8fa;
+    --bar: #54aeff;
+    --bar-best: #1f883d;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  h1 { margin-top: 0; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-top: 36px; }
+  h3 { margin-top: 28px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+  pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  .meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 16px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 16px 0 24px;
+  }
+  .meta dt { font-weight: 600; color: var(--muted); }
+  .meta dd { margin: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    background: white;
+    margin: 12px 0 24px;
+    font-size: 0.92em;
+  }
+  th, td {
+    padding: 7px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+  }
+  th { background: #f6f8fa; text-align: right; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  tr:nth-child(even) td { background: var(--row-alt); }
+  .best { color: var(--good); font-weight: 600; }
+  .bar-wrap { background: #eaeef2; border-radius: 3px; height: 14px; min-width: 80px; position: relative; }
+  .bar { background: var(--bar); height: 100%; border-radius: 3px; }
+  .bar.best { background: var(--bar-best); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .callout {
+    background: white;
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .callout.good { border-left-color: var(--good); }
+  .callout.warn { border-left-color: var(--warn); }
+  .small { color: var(--muted); font-size: 0.9em; }
+  ul.takeaways li { margin: 6px 0; }
+  .tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #ddf4ff;
+    color: #0550ae;
+    font-size: 0.8em;
+    margin-right: 4px;
+  }
+  .tag.bad { background: #ffebe9; color: #a40e26; }
+  .num-good { color: var(--good); }
+  .num-bad  { color: var(--bad); }
+  .lc { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 12px 0 8px; }
+  .lc-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px 10px; text-align: center; }
+  .lc-card .v { font-size: 1.25em; font-weight: 700; color: var(--good); }
+  .lc-card .s { color: var(--muted); font-size: 0.8em; }
+  .cm { border-collapse: collapse; font-size: 0.82em; }
+  .cm td, .cm th { text-align: center; padding: 6px 7px; border: 1px solid var(--border); min-width: 38px; }
+  .cm th { background: #f6f8fa; font-weight: 600; }
+  .cm th.corner { background: white; border: none; }
+  .cm td.rowlab, .cm th.rowlab { text-align: right; font-weight: 600; background: #f6f8fa; }
+  .cm .diag { outline: 2px solid var(--good); outline-offset: -2px; font-weight: 700; }
+  .cm-legend { font-size: 0.85em; color: var(--muted); margin: 4px 0 24px; }
+  .cm-wrap { overflow-x: auto; }
+  footer { color: var(--muted); font-size: 0.85em; margin-top: 48px; }
+</style>
+</head>
+<body>
+
+<h1>DNN replacement for the CatBoost + TabICL pipeline</h1>
+<p class="small">A single GPU neural network that <strong>replaces</strong> the two-stage CC-APS&nbsp;CatBoost&nbsp;→&nbsp;TabICL model on the nyvest land-cover task. Evaluated on the <strong>identical protocol</strong> as the <a href="../common_ground/reports/research/schemeB_allyears_best_report.html">Scheme&nbsp;B all-years report</a> (same stable all-years AlphaEarth + lidar features, same class merges, same spatially-blocked 3-fold CV, same untouched-test macro-F1). Best macro-F1 <strong>0.7341</strong> — <strong>+0.0202</strong> over the TabICL+lidar reference (0.7139), and it trains in <strong>~6&nbsp;min</strong> on one A40 vs the ~38&nbsp;min two-stage pipeline, using &lt;2&nbsp;GB of GPU memory. This report supersedes the Scheme&nbsp;B report as the current best model.</p>
+
+<dl class="meta">
+  <dt>Model script</dt><dd><code>DNN/stage8_cls12_relabel.py</code> (<code>RELABEL=to12_fix</code>) — the winning config. Base recipe in <code>DNN/stage3_robust_mlp.py</code>.</dd>
+  <dt>Shared protocol</dt><dd><code>DNN/data_utils.py</code> — mirrors <code>llto_schemeB_allyears.py</code> exactly (merge 1→2 / 9→8, GroupKFold on <code>cell_id</code>, macro-F1 over all classes, lidar join, leak-free test).</dd>
+  <dt>Stable dataset</dt><dd><code>data/grunnkart_nyvest_fscs_stable_allyears_alphaearth.parquet</code> — 663,740 rows, 2017–2025</dd>
+  <dt>Features</dt><dd>64 AlphaEarth bands (<code>A00..A63</code>) + 3 lidar terrain features (<code>elevation</code>, <code>tri</code>, <code>tch</code>) — the same set the Scheme&nbsp;B report established as best</dd>
+  <dt>Target</dt><dd><code>class</code> — FSCS land-cover, 10 classes after merging 1→2 (bare) and 9→8 (marine→water)</dd>
+  <dt>Validation</dt><dd>Spatially-blocked 3-fold CV (GroupKFold on <code>cell_id</code>); macro-F1 on untouched (noisy) test labels</dd>
+  <dt>Architecture</dt><dd>2-layer MLP (256→128, ReLU, dropout 0.3), <strong>sqrt-tempered class-weighted</strong> cross-entropy + label smoothing 0.05, Adam, early stopping, <strong>5-seed probability ensemble</strong>; train-only class-12 label handling (centroid clean / targeted relabel)</dd>
+  <dt>Hardware / runtime</dt><dd>NVIDIA A40 (24 GB); ~270 s (best MLP) – ~370 s (with cls12 relabel) for all 3 folds. &lt;2 GB GPU — no support-size ceiling.</dd>
+  <dt>Date</dt><dd>2026-06-29 (DNN stages 1–9, noise diagnostics, MoE); 2026-06-30 (report)</dd>
+</dl>
+
+<div class="callout good">
+  <strong>Why this report exists.</strong> The <a href="../common_ground/reports/research/schemeB_allyears_best_report.html">Scheme&nbsp;B all-years report</a> documents the CC-APS&nbsp;CatBoost&nbsp;→&nbsp;TabICL pipeline up to <strong>F1 0.7139</strong> (32k support + lidar). This session built a DNN to replace that pipeline. A deliberately incremental search (plain MLP → regularized → architecture sweep → MoE → pseudo-labelling → label-noise correction → attention) found that <strong>a simple class-weighted ensembled MLP beats the two-stage pipeline</strong>, and a targeted class-12 label fix pushes it to <strong>0.7341</strong>. A parallel session that extracted NiN_v2 field labels as extra training data is summarised below — it did <em>not</em> help.
+</div>
+
+<h2>Headline result</h2>
+<table>
+  <thead>
+    <tr><th>Model</th><th>Macro-F1</th><th>±std</th><th>vs TabICL ref (0.7139)</th><th>runtime</th><th></th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>DNN: MLP ensemble + cls12 relabel</strong> &nbsp;<span class="tag">new best</span></td><td class="best">0.7341</td><td>0.0089</td><td class="num-good">+0.0202</td><td>~6 min</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td>DNN: MLP ensemble (centroid cls12 clean)</td><td>0.7318</td><td>0.0095</td><td class="num-good">+0.0179</td><td>~4.5 min</td><td><div class="bar-wrap"><div class="bar" style="width:99.7%"></div></div></td></tr>
+    <tr><td>CatBoost → TabICL + lidar, sup32k <span class="tag">prior best</span></td><td>0.7139</td><td>0.0110</td><td>—</td><td>~38 min</td><td><div class="bar-wrap"><div class="bar" style="width:97.2%"></div></div></td></tr>
+    <tr><td>CatBoost → TabICL, AlphaEarth-only, sup32k</td><td>0.7074</td><td>0.0109</td><td class="num-bad">−0.0065</td><td>~30 min</td><td><div class="bar-wrap"><div class="bar" style="width:96.4%"></div></div></td></tr>
+    <tr><td>XGBoost baseline, all-years</td><td>0.6513</td><td>—</td><td class="num-bad">−0.0626</td><td>—</td><td><div class="bar-wrap"><div class="bar" style="width:88.7%"></div></div></td></tr>
+  </tbody>
+</table>
+<p class="small">The DNN beats the TabICL+lidar reference on the same features and the same spatial CV, while being ~6× faster and free of the TabICL O(n²) support-size ceiling (32k → 40k OOM'd the A40). The +0.0023 from the cls12 relabel sits at the edge of fold noise but is the only class-targeted gain found this session.</p>
+
+<h2>How the model was built (incremental)</h2>
+<table>
+  <thead><tr><th>Stage</th><th>Model / change</th><th>Macro-F1</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>plain 2-layer MLP, class-weighted CE</td><td>0.7112</td><td>strong baseline (60 s)</td></tr>
+    <tr><td>2</td><td>residual + BatchNorm + SWA + ensemble</td><td>0.7106</td><td class="num-bad">no gain — capacity not the lever</td></tr>
+    <tr><td>3</td><td>+ 5-seed ensemble (mixup/noise tried &amp; dropped)</td><td class="best">0.7318</td><td class="num-good">ensembling is the lever</td></tr>
+    <tr><td>4</td><td>+ conformal (CC-APS) pseudo-labelling of unstable pool</td><td>0.7320</td><td class="num-bad">no-op (5k pseudo on 664k train)</td></tr>
+    <tr><td>5</td><td>GLU / SNN / FT-Transformer architectures</td><td>0.708–0.729</td><td class="num-bad">all lose to the MLP</td></tr>
+    <tr><td>6</td><td>class-specialised Mixture-of-Experts</td><td>0.7294</td><td class="num-bad">no specialisation gain</td></tr>
+    <tr><td>7</td><td>spatial Mixture-of-Experts (region experts)</td><td>0.709–0.728</td><td class="num-bad">hard regions fight the spatial CV</td></tr>
+    <tr><td>8</td><td><strong>+ targeted class-12 label relabel</strong></td><td class="best">0.7341</td><td class="num-good">new best</td></tr>
+    <tr><td>9</td><td>feature-attention (SE / softmax gating)</td><td>0.728</td><td class="num-bad">lose; but weights confirm lidar</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>The one structural finding:</strong> the ceiling here is <strong>spatial generalization + feature-space class overlap</strong>, not model capacity. Stage&nbsp;2's residual net hit validation-F1 0.965 while test-F1 stayed 0.71 — it memorizes the training fold but does not transfer across the geographic <code>cell_id</code> folds. Every attempt to add capacity (depth, GLU, SNN, FT-Transformer, class-MoE, spatial-MoE, feature-attention) underperformed a simple ensembled MLP. The only levers that ever moved macro-F1 were <strong>better features</strong> (the lidar terrain bands, established in the Scheme&nbsp;B report) and <strong>variance reduction</strong> (the 5-seed ensemble).
+</div>
+
+<h2>Per-class F1 (best DNN, mean over folds)</h2>
+<table>
+  <thead><tr><th>Class</th><th>Land cover</th><th>F1</th><th>Δ vs MLP (cls12 clean)</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>8</td><td>water (+ marine)</td><td class="best">0.9537</td><td>−0.0002</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td>10</td><td>settlement</td><td>0.8488</td><td class="num-good">+0.0007</td><td><div class="bar-wrap"><div class="bar" style="width:89.0%"></div></div></td></tr>
+    <tr><td>3</td><td>cropland</td><td>0.7869</td><td>−0.0008</td><td><div class="bar-wrap"><div class="bar" style="width:82.5%"></div></div></td></tr>
+    <tr><td>11</td><td>infrastructure</td><td>0.7767</td><td class="num-good">+0.0012</td><td><div class="bar-wrap"><div class="bar" style="width:81.4%"></div></div></td></tr>
+    <tr><td>4</td><td>forest</td><td>0.7437</td><td>−0.0004</td><td><div class="bar-wrap"><div class="bar" style="width:78.0%"></div></div></td></tr>
+    <tr><td>12</td><td>snow/ice</td><td class="num-good">0.7260</td><td class="num-good">+0.0240</td><td><div class="bar-wrap"><div class="bar" style="width:76.1%"></div></div></td></tr>
+    <tr><td>7</td><td>wetland</td><td>0.6905</td><td>−0.0009</td><td><div class="bar-wrap"><div class="bar" style="width:72.4%"></div></div></td></tr>
+    <tr><td>6</td><td>scrub/heathland</td><td>0.6617</td><td>−0.0007</td><td><div class="bar-wrap"><div class="bar" style="width:69.4%"></div></div></td></tr>
+    <tr><td>5</td><td>grassland</td><td>0.5992</td><td class="num-good">+0.0002</td><td><div class="bar-wrap"><div class="bar" style="width:62.8%"></div></div></td></tr>
+    <tr><td>2</td><td>bare (rock/sand)</td><td>0.5538</td><td>0.0000</td><td><div class="bar-wrap"><div class="bar" style="width:58.1%"></div></div></td></tr>
+  </tbody>
+</table>
+<p class="small">The targeted class-12 relabel lifts snow/ice <strong>+0.024</strong> (0.702 → 0.726) while leaving every other class within noise — exactly the surgical win the noise diagnostics predicted. The class <em>ranking</em> is otherwise identical to the TabICL pipeline: water/settlement easy, grassland (5) and bare (2) the hardest. Per-fold: 0.737 / 0.743 / 0.722 (the same fold-2 spatial-block penalty as the pipeline).</p>
+
+<h2>Confusion matrix (best DNN)</h2>
+<p class="small">Leak-free predictions for the best DNN (MLP ensemble + targeted cls12 relabel) — each test fold predicted by an ensemble trained only on the other folds. Aggregated over all 3 folds (663,740 test rows), <strong>row-normalized to recall %</strong> — each row sums to 100. Diagonal (green outline) is per-class recall; off-diagonal cells are where true class → predicted class leaks. Colour intensity ∝ percentage. <code>·</code> = &lt;0.05%. Built by <code>DNN/confusion_matrix.py</code>.</p>
+<div class="cm-wrap">
+<table class='cm'><thead><tr><th class='corner'></th><th class='corner'></th><th colspan='10'>Predicted</th></tr><tr><th class='corner'></th><th class='corner'></th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>10</th><th>11</th><th>12</th></tr></thead><tbody><tr><th class='rowlab' rowspan='10'>True</th><th class='rowlab'>2 bare</th><td class='diag' style='background:rgb(120,172,234);color:#ffffff'>56</td><td class='' style='background:rgb(233,242,252);color:#1f2328'>7</td><td class='' style='background:rgb(233,241,252);color:#1f2328'>7</td><td class='' style='background:rgb(238,244,252);color:#1f2328'>5</td><td class='' style='background:rgb(219,233,250);color:#1f2328'>13</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:rgb(243,248,253);color:#1f2328'>2</td><td class='' style='background:rgb(231,240,251);color:#1f2328'>8</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>3 cropland</th><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='diag' style='background:rgb(65,139,226);color:#ffffff'>80</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(217,231,249);color:#1f2328'>14</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>2</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(242,247,253);color:#1f2328'>3</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>4 forest</th><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='diag' style='background:rgb(75,145,228);color:#ffffff'>75</td><td class='' style='background:rgb(235,243,252);color:#1f2328'>6</td><td class='' style='background:rgb(231,240,251);color:#1f2328'>8</td><td class='' style='background:rgb(235,242,252);color:#1f2328'>6</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:rgb(245,249,253);color:#1f2328'>2</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>5 grassland</th><td class='' style='background:rgb(248,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(209,227,248);color:#1f2328'>17</td><td class='' style='background:rgb(230,239,251);color:#1f2328'>8</td><td class='diag' style='background:rgb(103,162,232);color:#ffffff'>63</td><td class='' style='background:rgb(243,247,253);color:#1f2328'>3</td><td class='' style='background:rgb(239,245,252);color:#1f2328'>4</td><td class='' style='background:rgb(248,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(242,247,253);color:#1f2328'>3</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>6 scrub</th><td class='' style='background:rgb(245,249,253);color:#1f2328'>2</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(229,239,251);color:#1f2328'>9</td><td class='' style='background:rgb(243,247,253);color:#1f2328'>3</td><td class='diag' style='background:rgb(106,164,232);color:#ffffff'>62</td><td class='' style='background:rgb(230,239,251);color:#1f2328'>8</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:rgb(217,232,249);color:#1f2328'>14</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>7 wetland</th><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:rgb(230,239,251);color:#1f2328'>8</td><td class='' style='background:rgb(241,246,253);color:#1f2328'>3</td><td class='' style='background:rgb(227,238,251);color:#1f2328'>9</td><td class='diag' style='background:rgb(78,146,228);color:#ffffff'>74</td><td class='' style='background:rgb(245,248,253);color:#1f2328'>2</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(248,250,254);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>8 water</th><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(246,249,254);color:#1f2328'>1</td><td class='diag' style='background:rgb(32,118,221);color:#ffffff'>94</td><td class='' style='background:rgb(248,250,254);color:#1f2328'>0</td><td class='' style='background:rgb(246,249,253);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>10 settle</th><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(238,244,252);color:#1f2328'>5</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>2</td><td class='' style='background:rgb(242,247,253);color:#1f2328'>3</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='diag' style='background:rgb(50,130,224);color:#ffffff'>86</td><td class='' style='background:rgb(248,250,254);color:#1f2328'>1</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td></tr><tr><th class='rowlab'>11 infra</th><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(238,244,252);color:#1f2328'>5</td><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(219,233,249);color:#1f2328'>13</td><td class='' style='background:rgb(247,250,254);color:#1f2328'>1</td><td class='' style='background:rgb(245,249,253);color:#1f2328'>2</td><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='diag' style='background:rgb(68,140,227);color:#ffffff'>78</td><td class='' style='background:rgb(248,250,254);color:#1f2328'>0</td></tr><tr><th class='rowlab'>12 snow/ice</th><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(249,251,254);color:#1f2328'>0</td><td class='' style='background:#ffffff;color:#d0d7de'>·</td><td class='' style='background:rgb(244,248,253);color:#1f2328'>2</td><td class='' style='background:rgb(248,251,254);color:#1f2328'>0</td><td class='' style='background:rgb(200,221,247);color:#1f2328'>21</td><td class='diag' style='background:rgb(73,143,227);color:#ffffff'>76</td></tr></tbody></table>
+</div>
+<p class="cm-legend">The DNN learns the <strong>same confusion structure</strong> as the TabICL pipeline. <strong>Grassland (5)</strong> loses 17% to cropland and 8% to forest; <strong>cropland (3)</strong> gives 14% back to grassland (the dominant bidirectional leak). <strong>Bare (2)</strong> bleeds 13% into scrub and 8% into settlement; <strong>wetland (7)</strong> 9% into scrub and 8% into forest; <strong>scrub (6) ↔ infrastructure (11)</strong> is bidirectional (14% / 13%). <strong>Snow/ice (12)</strong> still leaks 21% into infrastructure — the residue of the stale-glacier label problem the targeted relabel only partly resolves. Water (94% recall) and settlement (86%) are clean. Relative to the pipeline's matrix, snow/ice recall is 76 vs 74–75 (the targeted relabel) and grassland 63 vs 60.</p>
+
+<h2>Is label noise a per-class problem?</h2>
+<p class="small">Four leak-free tests (transition matrix, confident-disagreement, noise-corrected ceiling, and clean-vs-noisy F1 gain) reusing the per-fold cleanlab artifact <code>clean_labels_perfold.npz</code>. The decisive test retrains on leak-free corrected labels and reads the per-class F1 change.</p>
+<table>
+  <thead><tr><th>Class</th><th>F1</th><th>est. noise %</th><th>relabel Δ (decisive)</th><th>verdict</th></tr></thead>
+  <tbody>
+    <tr><td>12 snow/ice</td><td>0.702</td><td>13%</td><td class="num-good">+0.037</td><td><strong>noise-limited — fixable</strong> (→ infra)</td></tr>
+    <tr><td>5 grassland</td><td>0.599</td><td>20%</td><td class="num-bad">−0.022</td><td>confusion-bound (relabel hurts)</td></tr>
+    <tr><td>7 wetland</td><td>0.691</td><td>19%</td><td class="num-bad">−0.032</td><td>confusion-bound (relabel hurts)</td></tr>
+    <tr><td>2 bare</td><td>0.554</td><td>19%</td><td>−0.001</td><td>confusion-bound</td></tr>
+    <tr><td>8 water / 10 settle</td><td>0.95 / 0.85</td><td>2–7%</td><td>~0</td><td>clean &amp; easy</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <strong>Label noise is a real, fixable problem for exactly one class — snow/ice (12).</strong> Its labels are systematically stale: 29 of 146 unique snow/ice locations look like another class in <em>every</em> embedding year 2017–2025 (no temporal trend), i.e. permanently mislabelled rock/debris polygons that deglaciated before the embeddings — both the noise estimate and the model vote point to <strong>infrastructure (class 11)</strong>, the same 21–23% leak the pipeline's confusion matrix shows. Correcting cls12 labels lifts it +0.037 in isolation. For the genuinely <em>worst</em> classes (grassland, bare, wetland), relabeling makes them <em>worse</em> — cleanlab recodes real grassland as forest because the classes overlap in feature space. They are confusion-bound, not noise-bound. <strong>Applying the correction to ALL classes hurts the DNN macro-F1 (−0.0065)</strong>, so the winning config relabels class&nbsp;12 only.
+</div>
+
+<h2>Would more data help? — class-wise learning curves</h2>
+<p class="small">Best recipe trained on 5%→100% of the (fold-0) training set. Rising at the right edge ⇒ data-starved; flat ⇒ confusion-bound.</p>
+<div class="lc">
+  <div class="lc-card"><div class="v">0.693</div><div class="s">22k (5%)</div></div>
+  <div class="lc-card"><div class="v">0.714</div><div class="s">44k (10%)</div></div>
+  <div class="lc-card"><div class="v">0.723</div><div class="s">88k (20%)</div></div>
+  <div class="lc-card"><div class="v">0.729</div><div class="s">177k (40%)</div></div>
+  <div class="lc-card"><div class="v">0.733</div><div class="s">310k (70%)</div></div>
+  <div class="lc-card"><div class="v">0.731</div><div class="s">442k (100%)</div></div>
+</div>
+<p class="small">Macro-F1 <strong>saturates by ~70% of the data and even dips slightly at 100%</strong>. The worst classes (grassland, bare) are dead flat across the curve — confusion-bound, not data-starved. The only data-sensitive class is snow/ice (rises to ~40% then plateaus, limited by rarity + label noise). <strong>More labelled data of the same distribution will not help</strong>; gains require better features or label correction. See <code>DNN/learning_curve.png</code>.</p>
+
+<h2>NiN_v2 field labels as extra training data — no gain</h2>
+<p class="small">A parallel session extracted the NiN_v2 ("Natur i Norge", field-mapped nature types, 28,496 polygons surveyed 2018–2023, higher certainty than grunnkart) as candidate extra training data for the problem classes, via a naturtype→FSCS crosswalk → points → AlphaEarth extraction (<code>scripts/extraction/nin_*.py</code>, <code>data/nin_alphaearth.parquet</code>, 200,006 rows).</p>
+<table>
+  <thead><tr><th>Strategy (CatBoost probe, leak-safe, NiN→train only)</th><th>Macro-F1</th><th>Δ</th><th>NiN train rows</th></tr></thead>
+  <tbody>
+    <tr><td>grunnkart only (baseline)</td><td>0.6964</td><td>—</td><td>0</td></tr>
+    <tr><td>+ NiN all</td><td class="num-bad">0.6891</td><td class="num-bad">−0.0073</td><td>142,973</td></tr>
+    <tr><td>+ NiN cap 2k/class</td><td>0.6974</td><td>+0.0010</td><td>8,491</td></tr>
+    <tr><td>+ NiN drop cls6/7, cap 2k</td><td>0.6976</td><td>+0.0013</td><td>6,491</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <strong>NiN_v2 adds no real gain — do not add it to training.</strong> Naively adding all points <em>hurts</em> (−0.0073); the best class-balanced variant is +0.0013, well inside the ±0.005 RNG band. Cause (confirmed by centroid diagnostic): NiN's fine ecological types don't align with grunnkart's coarse FSCS classes in AlphaEarth space — a label-<em>definition</em> mismatch, not a quality win. NiN heathland (Kystlynghei) sits closer to grunnkart <em>grassland</em> than to grunnkart's own scrub centroid, and NiN myr (wetland) closer to grassland than its own wetland — so injecting them corrupts exactly the boundaries we want to fix. Critically, <strong>NiN has no snow/ice category</strong>, so it cannot help class 12 — the one class with fixable label noise. The only honest path forward would be to <em>relabel</em> grunnkart pixels under high-certainty NiN polygons (overwrite, not append a second taxonomy), or build a NiN→FSCS map validated in embedding space.
+</div>
+
+<h2>What moved the needle — and what didn't</h2>
+<ul class="takeaways">
+  <li><strong>The DNN replaces the pipeline and wins.</strong> A class-weighted 2-layer MLP + 5-seed ensemble reaches 0.7318 — already above TabICL+lidar (0.7139) — on the same features and CV, in a fraction of the time and memory.</li>
+  <li><strong>Ensembling is the reliable lever; augmentation is not.</strong> 5-seed probability averaging is worth ~+0.004 (single seed 0.7248 → ensemble 0.7318). mixup and input noise were tried and <em>dropped</em> (they slightly hurt). Architecture (residual/GLU/SNN/FT-Transformer), class-MoE, spatial-MoE, conformal pseudo-labelling and feature-attention all failed to beat the plain MLP.</li>
+  <li><strong>Targeted class-12 relabel is the only class-specific win (+0.0023 macro, +0.024 on cls12).</strong> Surgically relabeling stale snow/ice rows banks the cls12 gain without the −0.0065 macro damage that blanket relabeling causes.</li>
+  <li><strong>The bottleneck is feature overlap, not the model.</strong> Learning curves saturate by 70% of the data; cleanlab confirms grassland/bare/wetland are confusion-bound. More data, more capacity, and routing (MoE) cannot separate genuinely-overlapping classes.</li>
+  <li><strong>Feature-attention weights independently re-rank lidar (tri, tch, elevation) as the top features</strong> — corroborating the Scheme&nbsp;B lidar finding by a second method, even though acting on the weights doesn't raise F1.</li>
+  <li><strong>NiN_v2 field labels don't help</strong> (label-definition mismatch; no snow/ice class).</li>
+</ul>
+
+<h2>Reproduce</h2>
+<pre><code># Best DNN (targeted cls12 relabel). &lt;2 GB GPU; ~6 min for all 3 folds on the A40.
+systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 \
+  env RELABEL=to12_fix \
+  ~/myprojects/recover/.venv/bin/python DNN/stage8_cls12_relabel.py
+
+# Plain best MLP (0.7318, no cls12 relabel):
+~/myprojects/recover/.venv/bin/python DNN/stage3_robust_mlp.py
+# Diagnostics: DNN/noise_diagnostics.py + DNN/noise_clean_gain.py (label noise),
+#              DNN/lc_point.py + DNN/lc_aggregate.py (learning curves).
+</code></pre>
+
+<footer>
+  Source results: <code>DNN/stage8_to12_fix.json</code> (0.7341, best), <code>DNN/stage3_results.json</code> (0.7318),
+  <code>DNN/noise_clean_gain.json</code>, <code>DNN/learning_curve.json</code>, <code>DNN/stage{4,5,6,7,9}_*.json</code>.
+  Model: <code>DNN/stage8_cls12_relabel.py</code> + <code>DNN/stage3_robust_mlp.py</code>; protocol <code>DNN/data_utils.py</code>.
+  NiN_v2: <code>scripts/extraction/nin_*.py</code>, <code>data/nin_alphaearth.parquet</code>.
+  Supersedes <a href="../common_ground/reports/research/schemeB_allyears_best_report.html">schemeB_allyears_best_report.html</a> (TabICL, 0.7139). Generated 2026-06-30.
+</footer>
+
+</body>
+</html>
