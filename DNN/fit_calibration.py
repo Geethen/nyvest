@@ -110,7 +110,7 @@ def main():
     conf_metrics = cm.set_metrics(sets_full, y_true, n_classes)
     print(f"LAC+Mondrian (in-sample check): coverage={conf_metrics['coverage']} "
           f"avg_set_size={conf_metrics['avg_set_size']} "
-          f"(conformal_compare.json reference: 0.8999 / 1.644)", flush=True)
+          f"(reports/results/conformal_compare.json reference: 0.8999 / 1.644)", flush=True)
 
     # ---- cal/eval split of the OOF set for the point-calibration comparison ----
     rng = np.random.default_rng(SEED)

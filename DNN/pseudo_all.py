@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import conformal_utils as cu     # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -45,7 +46,7 @@ N_ENSEMBLE = 5
 ALPHA = float(os.environ.get("ALPHA", "0.05"))
 CAL_FRAC = float(os.environ.get("CAL_FRAC", "0.15"))
 PSEUDO_WEIGHT = float(os.environ.get("PSEUDO_WEIGHT", "1.0"))
-OUT_JSON = Path(__file__).resolve().parent / "pseudo_all.json"
+OUT_JSON = result_path("pseudo_all.json")
 
 
 def train_ensemble(Xfit, yfit, n_classes, seed0, sample_w=None):

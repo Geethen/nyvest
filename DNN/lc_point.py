@@ -18,6 +18,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 FOLD = 0
@@ -75,7 +76,7 @@ def main():
     macro = du.macro_f1(yte, pred, n_classes)
     pc = du.per_class_f1(yte, pred, n_classes)
 
-    out = Path(__file__).resolve().parent / f"lc_shard_{frac}_{seed}.json"
+    out = result_path(f"lc_shard_{frac}_{seed}.json")
     out.write_text(json.dumps({
         "frac": frac, "seed": seed, "n_train": int(len(sub)),
         "macro": round(float(macro), 4),

@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import conformal_utils as cu       # noqa: E402
 import stage3_robust_mlp as s3     # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -44,7 +45,7 @@ ALPHA = float(os.environ.get("ALPHA", "0.05"))
 N_ENSEMBLE = int(os.environ.get("N_ENSEMBLE", "5"))
 CAL_FRAC = float(os.environ.get("CAL_FRAC", "0.15"))
 CLEAN_CLS12 = os.environ.get("CLEAN_CLS12", "1") == "1"
-OUT_JSON = Path(__file__).resolve().parent / "stage4_results.json"
+OUT_JSON = result_path("stage4_results.json")
 
 
 def train_ensemble(Xfit, yfit, n_classes, n_ens, seed0):

@@ -56,6 +56,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import dnn_core as C               # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 import scaling_data as sd          # noqa: E402
 
 
@@ -127,7 +128,7 @@ def fit_one_fold(Xtr, ytr, Xte, yte, hidden, n_classes, feat_cols, classes,
 
 def _write(results, t0, done, total):
     """Write scaling_grid.json (incremental during the run, final at the end)."""
-    out = Path(__file__).resolve().parent / "scaling_grid.json"
+    out = result_path("scaling_grid.json")
     payload = {
         "baseline": {"dnn_best_to12fix": 0.7341, "dnn_plain": 0.7318,
                      "tabicl": 0.7139},

@@ -46,6 +46,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import dnn_core as C               # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 
 PERFOLD_NPZ = (du._REPO / "common_ground" / "reports" / "research"
                / "clean_labels_perfold.npz")
@@ -114,7 +115,7 @@ def main():
 
     real, med, non = (results["real"]["f1_mean"], results["median"]["f1_mean"],
                       results["none"]["f1_mean"])
-    out = Path(__file__).resolve().parent / "lidar_ablation.json"
+    out = result_path("lidar_ablation.json")
     out.write_text(json.dumps({
         "recipe": {"hidden": [256, 128], "n_ensemble": 5, "relabel": "to12_fix",
                    "dropout": 0.3, "lr": 1e-3, "weight_decay": 1e-4},

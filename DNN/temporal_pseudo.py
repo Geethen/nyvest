@@ -50,6 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import conformal_utils as cu       # noqa: E402
 import stage3_robust_mlp as s3     # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 import temporal_llto as tl         # noqa: E402  (spatial_blocks, clean_train)
 
 DEVICE = s3.DEVICE
@@ -59,7 +60,7 @@ N_SPATIAL = du.N_FOLDS
 ALPHA = float(os.environ.get("ALPHA", "0.05"))
 CAL_FRAC = float(os.environ.get("CAL_FRAC", "0.15"))
 ARMS = os.environ.get("ARMS", "none,all").split(",")   # default: control vs all
-OUT_JSON = Path(__file__).resolve().parent / "temporal_pseudo.json"
+OUT_JSON = result_path("temporal_pseudo.json")
 
 
 def train_ensemble(Xfit, yfit, n_classes, seed0):

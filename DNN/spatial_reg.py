@@ -55,6 +55,7 @@ import torch.nn as nn
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import dnn_core as C               # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 
 DEVICE = C.DEVICE
 
@@ -205,7 +206,7 @@ def fit_predict_spatial(Xtr, ytr, gtr, Xte, n_classes, w, hidden, lr,
 
 
 def _write(results, t0, done, total):
-    out = Path(__file__).resolve().parent / "spatial_reg.json"
+    out = result_path("spatial_reg.json")
     out.write_text(json.dumps({
         "baseline": {"dnn_best_to12fix": 0.7341, "scaling_256_128": 0.7304,
                      "reg_best_512_drop05": 0.7320},

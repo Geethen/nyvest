@@ -1,22 +1,25 @@
-"""Aggregate lc_shard_*.json -> learning_curve.json + learning_curve.png.
+"""Aggregate reports/results/lc_shard_*.json into the learning-curve outputs.
 Averages seeds per fraction; plots per-class + macro learning curves."""
 from __future__ import annotations
 
 import glob
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dnn_paths import RESULTS_DIR, figure_path, result_path  # noqa: E402
+
 NAMES = {2: "2 sparse-veg", 3: "3 forest", 4: "4 forest", 5: "5 GRASSLAND",
          6: "6 open-upland", 7: "7 mire/wet", 8: "8 water", 10: "10 bare",
          11: "11 built/infra", 12: "12 snow/ice"}
 
 
 def main():
-    shards = [json.loads(Path(f).read_text()) for f in glob.glob(str(HERE / "lc_shard_*.json"))]
+    shards = [json.loads(Path(f).read_text()) for f in glob.glob(str(RESULTS_DIR / "lc_shard_*.json"))]
     if not shards:
         print("no shards found"); return
     byfrac = defaultdict(list)
@@ -33,7 +36,7 @@ def main():
         for c in classes:
             vals = [g["per_class"][str(c)] for g in grp]
             curve["per_class"][str(c)].append(round(float(np.mean(vals)), 4))
-    (HERE / "learning_curve.json").write_text(json.dumps(curve, indent=2))
+    result_path("learning_curve.json").write_text(json.dumps(curve, indent=2))
     print("fractions:", fracs)
     print("n_train:  ", curve["n_train"])
     print("macro:    ", curve["macro"])
@@ -55,8 +58,9 @@ def main():
         ax.set_title("Class-wise learning curves — rising=wants more data, flat=confusion-bound")
         ax.grid(alpha=0.3); ax.legend(fontsize=8, ncol=2)
         fig.tight_layout()
-        fig.savefig(HERE / "learning_curve.png", dpi=130)
-        print("saved -> learning_curve.png")
+        png = figure_path("learning_curve.png")
+        fig.savefig(png, dpi=130)
+        print(f"saved -> {png}")
     except Exception as e:
         print(f"plot skipped: {e}")
 

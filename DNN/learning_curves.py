@@ -12,7 +12,7 @@ shrink too — that is the honest "more data of the same distribution" curve). W
 also keep a fixed full test fold so F1 is comparable across sizes.
 
 Cheap config: fold 0 only, 2 seeds/point (averaged), no augmentation. Writes
-DNN/learning_curve.json and DNN/learning_curve.png.
+DNN/reports/results/learning_curve.json and DNN/reports/figures/learning_curve.png.
 
 Run: ~/myprojects/recover/.venv/bin/python DNN/learning_curves.py
 """
@@ -31,6 +31,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import figure_path, result_path  # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -111,7 +112,7 @@ def main():
             curve["per_class"][str(c)].append(round(float(pc[i]), 4))
         print(f"  frac={frac:>4}  n={n_used:>7,}  macroF1={macro:.4f}")
 
-    out = Path(__file__).resolve().parent / "learning_curve.json"
+    out = result_path("learning_curve.json")
     out.write_text(json.dumps(curve, indent=2))
     print(f"saved -> {out}")
 
@@ -137,7 +138,7 @@ def main():
         ax.grid(alpha=0.3)
         ax.legend(fontsize=8, ncol=2)
         fig.tight_layout()
-        png = Path(__file__).resolve().parent / "learning_curve.png"
+        png = figure_path("learning_curve.png")
         fig.savefig(png, dpi=130)
         print(f"saved -> {png}")
     except Exception as e:

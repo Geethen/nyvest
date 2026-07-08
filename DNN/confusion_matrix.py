@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import html_path   # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -114,7 +115,7 @@ def main():
         f"<tr><th class='corner'></th><th class='corner'></th>{head_cols}</tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>\n</div>"
     )
-    out = Path(__file__).resolve().parent / "confusion_matrix_fragment.html"
+    out = html_path("confusion_matrix_fragment.html")
     out.write_text(html)
     print(f"\nsaved -> {out}")
     # also dump recall diagonal + top off-diagonals for the legend

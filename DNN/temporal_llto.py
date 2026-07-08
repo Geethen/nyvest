@@ -45,12 +45,13 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
 N_ENSEMBLE = 5
 N_SPATIAL = du.N_FOLDS
-OUT_JSON = Path(__file__).resolve().parent / "temporal_llto.json"
+OUT_JSON = result_path("temporal_llto.json")
 
 
 def spatial_blocks(groups, n_folds=N_SPATIAL):

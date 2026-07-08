@@ -42,13 +42,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import conformal_methods as cm     # noqa: E402
 import stage3_robust_mlp as s3     # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
 N_ENSEMBLE = 5
 ALPHA = float(os.environ.get("ALPHA", "0.1"))     # target miscoverage (90% cov)
 CAL_FRAC = float(os.environ.get("CAL_FRAC", "0.5"))
-OUT_JSON = Path(__file__).resolve().parent / "conformal_compare.json"
+OUT_JSON = result_path("conformal_compare.json")
 
 
 def train_and_prob(Xtr, ytr, Xte, n_classes):

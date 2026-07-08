@@ -39,6 +39,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -130,7 +131,7 @@ def main():
     print(f"  cls12 F1={pc[c12]:.4f}  (Δ vs best cls12 0.702 = {pc[c12]-0.702:+.4f})")
     for c, v in zip(classes, pc):
         print(f"    {NAMES[c]+'/'+str(c):>14}: {v:.4f}")
-    out = Path(__file__).resolve().parent / f"stage8_{RELABEL}.json"
+    out = result_path(f"stage8_{RELABEL}.json")
     out.write_text(json.dumps({
         "stage": "stage8_cls12_relabel", "relabel": RELABEL,
         "f1_mean": round(f1m, 4), "f1_std": round(f1std, 4),

@@ -45,6 +45,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
 from stage6_moe import ExpertMLP, importance_loss  # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -57,7 +58,7 @@ HIDDEN = tuple(int(x) for x in os.environ.get("HIDDEN", "256,128").split(","))
 LR = float(os.environ.get("LR", "1e-3"))
 LB_COEF = float(os.environ.get("LB_COEF", "0.01"))
 CLEAN_CLS12 = os.environ.get("CLEAN_CLS12", "1") == "1"
-OUT_JSON = Path(__file__).resolve().parent / f"stage7_spatial_{MODE}_e{N_EXPERTS}.json"
+OUT_JSON = result_path(f"stage7_spatial_{MODE}_e{N_EXPERTS}.json")
 NAMES = {2: "sparse-veg", 3: "forest", 4: "forest", 5: "GRASSLAND", 6: "open-upland",
          7: "mire/wet", 8: "water", 10: "bare", 11: "built/infra", 12: "snow/ice"}
 

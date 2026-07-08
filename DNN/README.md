@@ -134,7 +134,7 @@ CatBoost-importance finding by a completely different method. Acting on it
 
 `learning_curves.py` / `lc_point.py` (parallel) / `lc_aggregate.py` train the
 best recipe on 5%→100% of fold-0 train and plot per-class test F1 vs train size
-(`learning_curve.png`). Reading the slope over the last data doubling:
+(`reports/figures/learning_curve.png`). Reading the slope over the last data doubling:
 
 - **Macro F1 saturates by ~70% (310k rows): 0.7326 → 0.7309 at 100%** — a tiny
   dip. More data of the same distribution does **not** help.
@@ -220,7 +220,10 @@ more noise-robust than the 32k-support TabICL.
 - `stage6_moe.py` — soft Mixture-of-Experts (added by subagent).
 - `learning_curves.py` (serial) / `lc_point.py` + `lc_aggregate.py` (parallel,
   one process per (frac,seed) point) — class-wise learning curves +
-  `learning_curve.png`.
+  `reports/figures/learning_curve.png`.
+- `dnn_paths.py` — shared path constants. Generated experiment outputs are kept
+  under `reports/results/`, `reports/logs/`, `reports/figures/`, and
+  `reports/html/` so the top-level folder stays source-focused.
 
 ## Run
 

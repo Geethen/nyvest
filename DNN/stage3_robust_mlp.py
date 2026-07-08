@@ -36,6 +36,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du  # noqa: E402
+from dnn_paths import result_path  # noqa: E402
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 SEED = 0
@@ -57,7 +58,7 @@ N_ENSEMBLE = int(os.environ.get("N_ENSEMBLE", "5"))
 INPUT_NOISE = float(os.environ.get("INPUT_NOISE", "0.0"))   # std in standardized space
 MIXUP_ALPHA = float(os.environ.get("MIXUP_ALPHA", "0.0"))   # 0 disables mixup
 CLEAN_CLS12 = os.environ.get("CLEAN_CLS12", "1") == "1"
-OUT_JSON = Path(__file__).resolve().parent / "stage3_results.json"
+OUT_JSON = result_path("stage3_results.json")
 
 
 def set_seed(s):

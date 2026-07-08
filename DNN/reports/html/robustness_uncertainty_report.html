@@ -55,7 +55,7 @@
 <dl class="meta">
   <dt>Base model</dt><dd><code>DNN/stage3_robust_mlp.py</code> recipe (headline 0.7341 config), same features / merges / spatial CV as <a href="dnn_replacement_report.html">the best-model report</a></dd>
   <dt>Scripts</dt><dd><code>DNN/temporal_llto.py</code> · <code>DNN/pseudo_all.py</code> · <code>DNN/conformal_compare.py</code> (+ <code>conformal_methods.py</code>)</dd>
-  <dt>Results</dt><dd><code>DNN/temporal_llto.json</code> · <code>DNN/pseudo_all.json</code> · <code>DNN/conformal_compare.json</code></dd>
+  <dt>Results</dt><dd><code>DNN/reports/results/temporal_llto.json</code> · <code>DNN/reports/results/pseudo_all.json</code> · <code>DNN/reports/results/conformal_compare.json</code></dd>
   <dt>Data</dt><dd>stable-allyears parquet (663,740 rows, 2017–2025) + 16,844 unstable rows for pseudo-labelling</dd>
   <dt>Hardware</dt><dd>NVIDIA A40; LLTO ~54 min (28 ensembles), pseudo ~28 min, conformal ~7 min</dd>
   <dt>Date</dt><dd>2026-07-01</dd>
@@ -237,7 +237,7 @@ env ALPHA=0.1 ~/myprojects/recover/.venv/bin/python DNN/conformal_compare.py
 </code></pre>
 
 <footer>
-  Source results: <code>DNN/temporal_llto.json</code>, <code>DNN/pseudo_all.json</code>, <code>DNN/conformal_compare.json</code>.
+  Source results: <code>DNN/reports/results/temporal_llto.json</code>, <code>DNN/reports/results/pseudo_all.json</code>, <code>DNN/reports/results/conformal_compare.json</code>.
   Scripts: <code>DNN/temporal_llto.py</code>, <code>DNN/pseudo_all.py</code>, <code>DNN/conformal_compare.py</code>, <code>DNN/conformal_methods.py</code>.
   Base model &amp; protocol: <code>DNN/stage3_robust_mlp.py</code> + <code>DNN/data_utils.py</code>.
   Follow-up to <a href="dnn_replacement_report.html">dnn_replacement_report.html</a> (best model, F1 0.7341). Generated 2026-07-01.

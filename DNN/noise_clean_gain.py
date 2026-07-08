@@ -30,6 +30,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -110,7 +111,7 @@ def main():
           f"Δ={c.mean()-o.mean():+.4f}")
     print("Reading: Δ>=+0.01 => relabeling that class's train data helps =>\n"
           "label noise is a real, fixable problem for it. Δ~0 => not noise-limited.")
-    out = Path(__file__).resolve().parent / "noise_clean_gain.json"
+    out = result_path("noise_clean_gain.json")
     out.write_text(json.dumps({
         "per_class_orig": {str(classes[i]): round(float(o[i]), 4) for i in range(n_classes)},
         "per_class_relabel": {str(classes[i]): round(float(c[i]), 4) for i in range(n_classes)},

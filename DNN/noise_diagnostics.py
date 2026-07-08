@@ -38,6 +38,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -121,8 +122,7 @@ def main():
 
     # known per-class F1 on the best MLP (from stage3_results.json)
     import json
-    f1pc = json.loads((Path(__file__).resolve().parent /
-                       "stage3_results.json").read_text())["f1_per_class"]
+    f1pc = json.loads(result_path("stage3_results.json").read_text())["f1_per_class"]
 
     print(f"\n=== Per-class label-noise diagnostics (leak-free) ===")
     print(f"{'class':>14} {'F1':>6} {'noise%':>7} {'confDis%':>9} "

@@ -43,6 +43,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -64,7 +65,7 @@ HARD_CLASSES = [2, 5, 6, 7, 12]
 if VARIANT == "moe8":
     N_EXPERTS = int(os.environ.get("N_EXPERTS", "8"))
 
-OUT_JSON = Path(__file__).resolve().parent / f"stage6_moe_{VARIANT}_results.json"
+OUT_JSON = result_path(f"stage6_moe_{VARIANT}_results.json")
 
 
 # ------------------------------- architecture -------------------------------

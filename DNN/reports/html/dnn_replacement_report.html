@@ -208,7 +208,7 @@
   <div class="lc-card"><div class="v">0.733</div><div class="s">310k (70%)</div></div>
   <div class="lc-card"><div class="v">0.731</div><div class="s">442k (100%)</div></div>
 </div>
-<p class="small">Macro-F1 <strong>saturates by ~70% of the data and even dips slightly at 100%</strong>. The worst classes (grassland, bare) are dead flat across the curve — confusion-bound, not data-starved. The only data-sensitive class is snow/ice (rises to ~40% then plateaus, limited by rarity + label noise). <strong>More labelled data of the same distribution will not help</strong>; gains require better features or label correction. See <code>DNN/learning_curve.png</code>.</p>
+<p class="small">Macro-F1 <strong>saturates by ~70% of the data and even dips slightly at 100%</strong>. The worst classes (grassland, bare) are dead flat across the curve — confusion-bound, not data-starved. The only data-sensitive class is snow/ice (rises to ~40% then plateaus, limited by rarity + label noise). <strong>More labelled data of the same distribution will not help</strong>; gains require better features or label correction. See <code>DNN/reports/figures/learning_curve.png</code>.</p>
 
 <h2>NiN_v2 field labels as extra training data — no gain</h2>
 <p class="small">A parallel session extracted the NiN_v2 ("Natur i Norge", field-mapped nature types, 28,496 polygons surveyed 2018–2023, higher certainty than grunnkart) as candidate extra training data for the problem classes, via a naturtype→FSCS crosswalk → points → AlphaEarth extraction (<code>scripts/extraction/nin_*.py</code>, <code>data/nin_alphaearth.parquet</code>, 200,006 rows).</p>
@@ -248,8 +248,8 @@ systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 \
 </code></pre>
 
 <footer>
-  Source results: <code>DNN/stage8_to12_fix.json</code> (0.7341, best), <code>DNN/stage3_results.json</code> (0.7318),
-  <code>DNN/noise_clean_gain.json</code>, <code>DNN/learning_curve.json</code>, <code>DNN/stage{4,5,6,7,9}_*.json</code>.
+  Source results: <code>DNN/reports/results/stage8_to12_fix.json</code> (0.7341, best), <code>DNN/reports/results/stage3_results.json</code> (0.7318),
+  <code>DNN/reports/results/noise_clean_gain.json</code>, <code>DNN/reports/results/learning_curve.json</code>, <code>DNN/reports/results/stage{4,5,6,7,9}_*.json</code>.
   Model: <code>DNN/stage8_cls12_relabel.py</code> + <code>DNN/stage3_robust_mlp.py</code>; protocol <code>DNN/data_utils.py</code>.
   NiN_v2: <code>scripts/extraction/nin_*.py</code>, <code>data/nin_alphaearth.parquet</code>.
   Supersedes <a href="../common_ground/reports/research/schemeB_allyears_best_report.html">schemeB_allyears_best_report.html</a> (TabICL, 0.7139). Generated 2026-06-30.

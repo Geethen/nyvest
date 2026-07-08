@@ -36,6 +36,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -49,7 +50,7 @@ FT_DIM = int(os.environ.get("FT_DIM", "64"))
 FT_HEADS = int(os.environ.get("FT_HEADS", "8"))
 FT_LAYERS = int(os.environ.get("FT_LAYERS", "3"))
 LR = float(os.environ.get("LR", "1e-3"))
-OUT_JSON = Path(__file__).resolve().parent / f"stage5_{ARCH}_results.json"
+OUT_JSON = result_path(f"stage5_{ARCH}_results.json")
 
 
 # ------------------------------- architectures -------------------------------

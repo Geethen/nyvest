@@ -41,6 +41,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du          # noqa: E402
 import stage3_robust_mlp as s3   # noqa: E402
+from dnn_paths import result_path # noqa: E402
 
 DEVICE = s3.DEVICE
 SEED = 0
@@ -51,7 +52,7 @@ DROPOUT = float(os.environ.get("DROPOUT", "0.3"))
 ATTN_HIDDEN = int(os.environ.get("ATTN_HIDDEN", "32"))   # bottleneck of the gate
 LR = float(os.environ.get("LR", "1e-3"))
 CLEAN_CLS12 = os.environ.get("CLEAN_CLS12", "1") == "1"
-OUT_JSON = Path(__file__).resolve().parent / f"stage9_attn_{ATTN}.json"
+OUT_JSON = result_path(f"stage9_attn_{ATTN}.json")
 NAMES = {2: "sparse-veg", 3: "forest", 4: "forest", 5: "GRASSLAND", 6: "open-upland",
          7: "mire/wet", 8: "water", 10: "bare", 11: "built/infra", 12: "snow/ice"}
 

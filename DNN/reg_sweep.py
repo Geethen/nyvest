@@ -47,6 +47,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import dnn_core as C               # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 
 
 def parse_widths(s):
@@ -65,7 +66,7 @@ BASELINE = {(256, 128): 0.7304, (512, 256): 0.7281}
 
 
 def _write(results, t0, done, total):
-    out = Path(__file__).resolve().parent / "reg_sweep.json"
+    out = result_path("reg_sweep.json")
     out.write_text(json.dumps({
         "baseline": {"dnn_best_to12fix": 0.7341,
                      "scaling_256_128": 0.7304, "scaling_512_256": 0.7281},

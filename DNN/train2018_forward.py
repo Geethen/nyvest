@@ -38,13 +38,14 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import data_utils as du            # noqa: E402
 import stage3_robust_mlp as s3     # noqa: E402
+from dnn_paths import result_path   # noqa: E402
 import temporal_llto as tl         # noqa: E402  (spatial_blocks, clean_train, fit_predict)
 
 SEED = 0
 N_SPATIAL = du.N_FOLDS
 TRAIN_YEAR = int(os.environ.get("TRAIN_YEAR", "2018"))
-OUT_JSON = Path(__file__).resolve().parent / f"train{TRAIN_YEAR}_forward.json"
-LLTO_JSON = Path(__file__).resolve().parent / "temporal_llto.json"
+OUT_JSON = result_path(f"train{TRAIN_YEAR}_forward.json")
+LLTO_JSON = result_path("temporal_llto.json")
 
 
 def main():
