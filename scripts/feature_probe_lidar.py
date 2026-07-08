@@ -53,10 +53,13 @@ REPORTS = REPO / "reports"
 STABLE = DATA / "grunnkart_nyvest_fscs_stable_allyears_alphaearth.parquet"
 LIDAR = DATA / "lidar_features.parquet"
 DEM = DATA / "dem_features.parquet"
+GPW = DATA / "gpw_features.parquet"
 
 EMBED_COLS = [f"A{i:02d}" for i in range(64)]
 LIDAR_COLS = ["elevation", "tch", "slope", "aspect_sin", "aspect_cos", "tri"]
 DEM_COLS = ["elevation_dem", "slope_dem"]
+GPW_COLS = ["gpw_dominant_class", "gpw_cultiv_p", "gpw_natsemi_p",
+            "gpw_veg_height", "gpw_ugpp"]
 MERGE_MAP = {1: 2, 9: 8}
 N_FOLDS = 3
 SEED = 0
@@ -80,6 +83,13 @@ def load() -> pd.DataFrame:
     df = df.merge(dem, on=["lon", "lat"], how="left")
     for c in DEM_COLS:
         df[c] = df[c].fillna(df[c].median()).astype(np.float32)
+    # gpw join (median-impute uncovered rows, same as lidar/dem)
+    if GPW.exists():
+        gpw = (duckdb.sql(f"SELECT lon,lat,{','.join(GPW_COLS)} FROM '{GPW}'")
+               .df().drop_duplicates(["lon", "lat"]))
+        df = df.merge(gpw, on=["lon", "lat"], how="left")
+        for c in GPW_COLS:
+            df[c] = df[c].fillna(df[c].median()).astype(np.float32)
     df["_y"] = pd.Series(df["class"]).replace(MERGE_MAP).astype(int).values
     return df
 
@@ -87,6 +97,7 @@ def load() -> pd.DataFrame:
 def cols_for(spec: str) -> list[str]:
     """spec like 'embed+lidar' -> column list."""
     groups = {"embed": EMBED_COLS, "lidar": LIDAR_COLS, "dem": DEM_COLS,
+              "gpw": GPW_COLS,
               # lean lidar: drop aspect_sin/aspect_cos (≈0 importance) and slope
               "lidar3": ["elevation", "tri", "tch"],
               "lidar4": ["elevation", "tri", "tch", "slope"]}

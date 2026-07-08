@@ -1,95 +1,83 @@
 [
   {
-    "feature": "elevation",
-    "importance": 0.0211
+    "feature": "tri",
+    "importance": 0.0297
   },
   {
-    "feature": "tri",
-    "importance": 0.0202
+    "feature": "elevation",
+    "importance": 0.0217
   },
   {
     "feature": "tch",
-    "importance": 0.0156
+    "importance": 0.0169
   },
   {
-    "feature": "A43",
-    "importance": 0.0112
-  },
-  {
-    "feature": "A01",
-    "importance": 0.0105
+    "feature": "gpw_ugpp",
+    "importance": 0.016
   },
   {
     "feature": "A17",
-    "importance": 0.0104
+    "importance": 0.0111
   },
   {
-    "feature": "A58",
-    "importance": 0.0095
+    "feature": "A43",
+    "importance": 0.0096
+  },
+  {
+    "feature": "A01",
+    "importance": 0.0089
   },
   {
     "feature": "A24",
-    "importance": 0.0094
+    "importance": 0.0088
   },
   {
     "feature": "A36",
-    "importance": 0.0079
+    "importance": 0.0071
   },
   {
-    "feature": "A38",
-    "importance": 0.0069
+    "feature": "A58",
+    "importance": 0.0064
   },
   {
     "feature": "A61",
-    "importance": 0.0063
+    "importance": 0.0058
   },
   {
-    "feature": "A60",
-    "importance": 0.006
-  },
-  {
-    "feature": "A07",
-    "importance": 0.006
+    "feature": "A38",
+    "importance": 0.0051
   },
   {
     "feature": "A27",
-    "importance": 0.0055
-  },
-  {
-    "feature": "A14",
     "importance": 0.0048
   },
   {
-    "feature": "A30",
-    "importance": 0.0047
+    "feature": "A07",
+    "importance": 0.0045
   },
   {
-    "feature": "A48",
-    "importance": 0.0043
+    "feature": "A30",
+    "importance": 0.0039
+  },
+  {
+    "feature": "A14",
+    "importance": 0.0038
   },
   {
     "feature": "A25",
-    "importance": 0.0034
+    "importance": 0.0037
+  },
+  {
+    "feature": "A48",
+    "importance": 0.0035
+  },
+  {
+    "feature": "A60",
+    "importance": 0.0031
   },
   {
     "feature": "A54",
     "importance": 0.0029
-  },
-  {
-    "feature": "slope",
-    "importance": 0.0028
-  },
-  {
-    "feature": "A02",
-    "importance": 0.0023
-  },
-  {
-    "feature": "A41",
-    "importance": 0.0022
-  },
-  {
-    "feature": "A16",
-    "importance": 0.0021
   },
   {
     "feature": "A59",
@@ -97,26 +85,22 @@
   },
   {
     "feature": "A08",
-    "importance": 0.002
-  },
-  {
-    "feature": "A56",
-    "importance": 0.002
-  },
-  {
-    "feature": "A09",
     "importance": 0.0019
   },
   {
-    "feature": "A62",
+    "feature": "A02",
+    "importance": 0.0019
+  },
+  {
+    "feature": "A16",
     "importance": 0.0018
   },
   {
-    "feature": "A34",
-    "importance": 0.0018
+    "feature": "gpw_cultiv_p",
+    "importance": 0.0017
   },
   {
-    "feature": "A50",
+    "feature": "A09",
     "importance": 0.0017
   },
   {
@@ -125,46 +109,46 @@
   },
   {
     "feature": "A20",
-    "importance": 0.0017
-  },
-  {
-    "feature": "A05",
     "importance": 0.0016
   },
   {
-    "feature": "A39",
+    "feature": "A34",
     "importance": 0.0016
   },
   {
-    "feature": "A44",
-    "importance": 0.0014
+    "feature": "A41",
+    "importance": 0.0016
   },
   {
-    "feature": "A40",
-    "importance": 0.0014
-  },
-  {
-    "feature": "A11",
-    "importance": 0.0014
-  },
-  {
-    "feature": "A03",
-    "importance": 0.0013
-  },
-  {
-    "feature": "A55",
-    "importance": 0.0013
+    "feature": "A56",
+    "importance": 0.0015
   },
   {
     "feature": "A45",
-    "importance": 0.0012
+    "importance": 0.0014
+  },
+  {
+    "feature": "A39",
+    "importance": 0.0013
   },
   {
     "feature": "A15",
+    "importance": 0.0013
+  },
+  {
+    "feature": "A44",
     "importance": 0.0012
   },
   {
-    "feature": "A33",
+    "feature": "A03",
+    "importance": 0.0012
+  },
+  {
+    "feature": "A62",
+    "importance": 0.0012
+  },
+  {
+    "feature": "gpw_natsemi_p",
     "importance": 0.0012
   },
   {
@@ -172,51 +156,75 @@
     "importance": 0.0012
   },
   {
+    "feature": "A05",
+    "importance": 0.0011
+  },
+  {
     "feature": "A32",
     "importance": 0.0011
   },
   {
-    "feature": "A04",
+    "feature": "A50",
     "importance": 0.0011
+  },
+  {
+    "feature": "A11",
+    "importance": 0.001
+  },
+  {
+    "feature": "A55",
+    "importance": 0.001
+  },
+  {
+    "feature": "A40",
+    "importance": 0.001
+  },
+  {
+    "feature": "gpw_veg_height",
+    "importance": 0.0009
+  },
+  {
+    "feature": "A33",
+    "importance": 0.0009
   },
   {
     "feature": "A47",
     "importance": 0.0008
   },
   {
-    "feature": "A49",
+    "feature": "A31",
     "importance": 0.0008
   },
   {
-    "feature": "A31",
+    "feature": "A49",
     "importance": 0.0007
   },
   {
-    "feature": "A12",
-    "importance": 0.0005
+    "feature": "A04",
+    "importance": 0.0006
   },
   {
     "feature": "A37",
     "importance": 0.0005
   },
   {
-    "feature": "A51",
-    "importance": 0.0005
-  },
-  {
     "feature": "A00",
-    "importance": 0.0005
-  },
-  {
-    "feature": "A46",
     "importance": 0.0004
   },
   {
-    "feature": "A42",
+    "feature": "A51",
+    "importance": 0.0004
+  },
+  {
+    "feature": "A21",
     "importance": 0.0003
   },
   {
-    "feature": "A10",
+    "feature": "A46",
+    "importance": 0.0003
+  },
+  {
+    "feature": "A12",
     "importance": 0.0003
   },
   {
@@ -224,11 +232,15 @@
     "importance": 0.0003
   },
   {
-    "feature": "A18",
+    "feature": "A35",
+    "importance": 0.0003
+  },
+  {
+    "feature": "A10",
     "importance": 0.0002
   },
   {
-    "feature": "A21",
+    "feature": "A18",
     "importance": 0.0002
   },
   {
@@ -236,23 +248,15 @@
     "importance": 0.0002
   },
   {
+    "feature": "A57",
+    "importance": 0.0002
+  },
+  {
     "feature": "A13",
     "importance": 0.0002
   },
   {
-    "feature": "A35",
-    "importance": 0.0002
-  },
-  {
-    "feature": "A57",
-    "importance": 0.0001
-  },
-  {
-    "feature": "A28",
-    "importance": 0.0001
-  },
-  {
-    "feature": "A26",
+    "feature": "A42",
     "importance": 0.0001
   },
   {
@@ -264,7 +268,11 @@
     "importance": 0.0001
   },
   {
-    "feature": "A22",
+    "feature": "A26",
+    "importance": 0.0001
+  },
+  {
+    "feature": "A28",
     "importance": 0.0001
   },
   {
@@ -272,11 +280,11 @@
     "importance": 0.0001
   },
   {
-    "feature": "aspect_sin",
-    "importance": -0.0001
+    "feature": "gpw_dominant_class",
+    "importance": 0.0001
   },
   {
-    "feature": "aspect_cos",
-    "importance": -0.0001
+    "feature": "A22",
+    "importance": 0.0001
   }
 ]

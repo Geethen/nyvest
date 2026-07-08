@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DNN best model — temporal robustness, pseudo-labels & conformal UQ</title>
+<style>
+  :root {
+    --bg: #fafbfc; --fg: #1f2328; --muted: #57606a; --border: #d0d7de;
+    --accent: #0969da; --good: #1f883d; --warn: #9a6700; --bad: #cf222e;
+    --row-alt: #f6f8fa; --bar: #54aeff; --bar-best: #1f883d;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg); background: var(--bg); max-width: 1080px; margin: 0 auto;
+    padding: 32px 24px 80px; line-height: 1.5; }
+  h1 { margin-top: 0; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-top: 36px; }
+  h3 { margin-top: 28px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+  pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px;
+    background: white; border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; margin: 16px 0 24px; }
+  .meta dt { font-weight: 600; color: var(--muted); }
+  .meta dd { margin: 0; }
+  table { border-collapse: collapse; width: 100%; background: white; margin: 12px 0 24px; font-size: 0.92em; }
+  th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+  th { background: #f6f8fa; text-align: right; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  tr:nth-child(even) td { background: var(--row-alt); }
+  .best { color: var(--good); font-weight: 600; }
+  .bar-wrap { background: #eaeef2; border-radius: 3px; height: 14px; min-width: 80px; position: relative; }
+  .bar { background: var(--bar); height: 100%; border-radius: 3px; }
+  .bar.best { background: var(--bar-best); }
+  .callout { background: white; border-left: 4px solid var(--accent); border-radius: 4px;
+    padding: 12px 16px; margin: 16px 0; }
+  .callout.good { border-left-color: var(--good); }
+  .callout.warn { border-left-color: var(--warn); }
+  .small { color: var(--muted); font-size: 0.9em; }
+  ul.takeaways li { margin: 6px 0; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #ddf4ff;
+    color: #0550ae; font-size: 0.8em; margin-right: 4px; }
+  .tag.bad { background: #ffebe9; color: #a40e26; }
+  .tag.good { background: #dafbe1; color: #0b6b2c; }
+  .num-good { color: var(--good); }
+  .num-bad  { color: var(--bad); }
+  .heat td.h { text-align: center; min-width: 40px; }
+  footer { color: var(--muted); font-size: 0.85em; margin-top: 48px; }
+</style>
+</head>
+<body>
+
+<h1>Best DNN — temporal robustness, all-pseudo-label training & conformal UQ</h1>
+<p class="small">Three follow-up investigations on the current best model (the ensembled class-weighted MLP, macro-F1 <strong>0.7341</strong>, documented in <a href="dnn_replacement_report.html">dnn_replacement_report.html</a>). All three reuse the <em>identical</em> base learner (5-seed MLP ensemble, sqrt class weights, label smoothing, train-only cls12 centroid clean) and the same 64 AlphaEarth + 3 lidar features, and are strictly leak-free. Headline: <strong>the model is temporally robust</strong> (−0.009 macro-F1 under leave-year-and-block-out), <strong>keeping all uncertain pseudo-labels doesn't help</strong> (+0.0003, a no-op), and among conformal methods <strong>LAC gives the tightest prediction sets while class-conditional (Mondrian) calibration fixes the per-class coverage gap</strong> that plain APS leaves on rare classes.</p>
+
+<dl class="meta">
+  <dt>Base model</dt><dd><code>DNN/stage3_robust_mlp.py</code> recipe (headline 0.7341 config), same features / merges / spatial CV as <a href="dnn_replacement_report.html">the best-model report</a></dd>
+  <dt>Scripts</dt><dd><code>DNN/temporal_llto.py</code> · <code>DNN/pseudo_all.py</code> · <code>DNN/conformal_compare.py</code> (+ <code>conformal_methods.py</code>)</dd>
+  <dt>Results</dt><dd><code>DNN/temporal_llto.json</code> · <code>DNN/pseudo_all.json</code> · <code>DNN/conformal_compare.json</code></dd>
+  <dt>Data</dt><dd>stable-allyears parquet (663,740 rows, 2017–2025) + 16,844 unstable rows for pseudo-labelling</dd>
+  <dt>Hardware</dt><dd>NVIDIA A40; LLTO ~54 min (28 ensembles), pseudo ~28 min, conformal ~7 min</dd>
+  <dt>Date</dt><dd>2026-07-01</dd>
+</dl>
+
+<!-- ============================================================ -->
+<h2>1 · Temporal robustness — leave-location-AND-time-out (LLTO)</h2>
+<p class="small">The headline number is from spatial 3-fold CV, which mixes all acquisition years into both train and test. That never tests generalization to an <em>unseen year</em> — a real risk because AlphaEarth embeddings can drift year to year (sensor, phenology, processing). <strong>LLTO holds out both axes at once:</strong> for each year 2017–2025, the test set is (that year) ∩ (a held-out spatial cell_id block), and the training set excludes both that year and that block. A test pixel is therefore unseen in time <em>and</em> space. This is strictly harder than either axis alone.</p>
+
+<table>
+  <thead><tr><th>Protocol</th><th>Macro-F1</th><th>vs headline spatial CV</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>Spatial-only CV, all years mixed <span class="tag">headline protocol</span></td><td class="best">0.7302</td><td>— (matches report's 0.7318)</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td><strong>LLTO — leave-year-and-block-out</strong> (mean over 9 years)</td><td>0.7210</td><td class="num-good">−0.0092</td><td><div class="bar-wrap"><div class="bar" style="width:98.7%"></div></div></td></tr>
+  </tbody>
+</table>
+<div class="callout good">
+  <strong>The model is temporally robust.</strong> Adding a full temporal hold-out on top of the spatial block costs only <strong>−0.009 macro-F1</strong> (0.7302 → 0.7210) — barely above one fold's std (±0.006–0.018). Predicting on a completely unseen acquisition year, in unseen locations, the model still scores 0.721. There is <strong>no temporal collapse</strong>: the model has not overfit any single year's radiometry.
+</div>
+
+<h3>Per-year macro-F1 (mean over 3 spatial blocks)</h3>
+<table>
+  <thead><tr><th>Held-out year</th><th>Macro-F1</th><th>±std</th><th>test rows</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>2017</td><td>0.7201</td><td>0.0125</td><td>74,538</td><td><div class="bar-wrap"><div class="bar" style="width:98.1%"></div></div></td></tr>
+    <tr><td>2018</td><td>0.7077</td><td>0.0174</td><td>74,089</td><td><div class="bar-wrap"><div class="bar" style="width:96.4%"></div></div></td></tr>
+    <tr><td>2019</td><td>0.7293</td><td>0.0163</td><td>72,902</td><td><div class="bar-wrap"><div class="bar" style="width:99.3%"></div></div></td></tr>
+    <tr><td>2020 <span class="tag bad">weakest</span></td><td class="num-bad">0.6998</td><td>0.0181</td><td>74,551</td><td><div class="bar-wrap"><div class="bar" style="width:95.3%"></div></div></td></tr>
+    <tr><td>2021</td><td>0.7241</td><td>0.0107</td><td>73,022</td><td><div class="bar-wrap"><div class="bar" style="width:98.6%"></div></div></td></tr>
+    <tr><td>2022 <span class="tag good">strongest</span></td><td class="best">0.7341</td><td>0.0052</td><td>73,543</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td>2023</td><td>0.7272</td><td>0.0062</td><td>74,073</td><td><div class="bar-wrap"><div class="bar" style="width:99.0%"></div></div></td></tr>
+    <tr><td>2024</td><td>0.7238</td><td>0.0056</td><td>73,792</td><td><div class="bar-wrap"><div class="bar" style="width:98.6%"></div></div></td></tr>
+    <tr><td>2025</td><td>0.7227</td><td>0.0122</td><td>73,230</td><td><div class="bar-wrap"><div class="bar" style="width:98.4%"></div></div></td></tr>
+  </tbody>
+</table>
+<p class="small">Range 0.700–0.734 — a 0.034 spread across 9 held-out years. Early years (2017–2018) and 2020 are slightly weaker; 2022–2025 are the most stable (lowest std). No trend of decay toward the newest year, so the model extrapolates forward as well as backward.</p>
+
+<h3>Which classes are temporally fragile? (per-class F1 spread across the 9 held-out years)</h3>
+<p class="small">Spread = max−min per-class F1 over the 9 LLTO years. Small spread ⇒ the class is learned from year-invariant structure; large spread ⇒ it depends on a particular year's appearance.</p>
+<table>
+  <thead><tr><th>Class</th><th>Land cover</th><th>min</th><th>max</th><th>spread</th><th>verdict</th></tr></thead>
+  <tbody>
+    <tr><td>12</td><td>snow/ice</td><td class="num-bad">0.484</td><td>0.725</td><td class="num-bad">0.241</td><td><strong>temporally fragile</strong> — 2020 crash</td></tr>
+    <tr><td>10</td><td>settlement</td><td>0.752</td><td>0.856</td><td>0.104</td><td>moderate — 2018 dip</td></tr>
+    <tr><td>5</td><td>grassland</td><td>0.542</td><td>0.612</td><td>0.069</td><td>mild</td></tr>
+    <tr><td>7</td><td>wetland</td><td>0.655</td><td>0.691</td><td>0.036</td><td>stable</td></tr>
+    <tr><td>6</td><td>scrub/heathland</td><td>0.637</td><td>0.671</td><td>0.034</td><td>stable</td></tr>
+    <tr><td>3</td><td>cropland</td><td>0.765</td><td>0.793</td><td>0.028</td><td>stable</td></tr>
+    <tr><td>2</td><td>bare</td><td>0.526</td><td>0.553</td><td>0.026</td><td>stable</td></tr>
+    <tr><td>4</td><td>forest</td><td>0.728</td><td>0.747</td><td>0.019</td><td>stable</td></tr>
+    <tr><td>11</td><td>infrastructure</td><td>0.760</td><td>0.775</td><td>0.015</td><td>stable</td></tr>
+    <tr><td>8</td><td>water</td><td>0.951</td><td>0.955</td><td>0.004</td><td>rock-solid</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <strong>The −0.009 LLTO penalty is almost entirely snow/ice.</strong> 8 of 10 classes have a per-year spread ≤ 0.04 — they are learned from year-invariant embedding structure. Only <strong>snow/ice (12)</strong> is genuinely temporally fragile: it swings 0.48 → 0.73 and is what drags 2020 down (that year's held-out snow/ice blocks look unlike other years' — real inter-annual snow-cover variability compounding the known stale-glacier label noise). Settlement (10) has a milder 2018 dip. This is consistent with the best-model report: snow/ice is the one class limited by label quality, and it is <em>also</em> the one class limited by temporal variability. <strong>Everything else transfers cleanly across years.</strong>
+</div>
+
+<!-- ============================================================ -->
+<h2>2 · Train on ALL pseudo-labels — no uncertainty removal</h2>
+<p class="small">The Scheme B / stage-4 approach only adds unstable rows whose CC-APS prediction set is a <em>singleton</em> (the confident ones). The question here: does keeping <strong>every</strong> unstable row — uncertain ones included, each tagged with the ensemble's argmax pseudo-label — help? Three arms, identical base learner, same leak-free spatial CV, test labels untouched. The <em>unstable</em> parquet (16,844 rows, the transition/edge pixels that fail the temporal-stability filter) is the pseudo-label pool.</p>
+<table>
+  <thead><tr><th>Arm</th><th>pseudo rows / fold</th><th>pseudo-label acc</th><th>Macro-F1</th><th>Δ vs control</th><th></th></tr></thead>
+  <tbody>
+    <tr><td><strong>none</strong> — stable train only <span class="tag">control (headline)</span></td><td>0</td><td>—</td><td>0.7310</td><td>—</td><td><div class="bar-wrap"><div class="bar" style="width:99.9%"></div></div></td></tr>
+    <tr><td><strong>singleton</strong> — CC-APS confident only <span class="tag">stage 4</span></td><td>~5,270</td><td class="num-good">0.889</td><td class="best">0.7320</td><td>+0.0010</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td><strong>all</strong> — every row, argmax, no filter</td><td>16,844</td><td class="num-bad">0.690</td><td>0.7313</td><td>+0.0003</td><td><div class="bar-wrap"><div class="bar" style="width:99.9%"></div></div></td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>Keeping the uncertain rows is a no-op, but — importantly — it does not hurt.</strong> Adding all 16.8k unstable rows with argmax labels moves macro-F1 by <strong>+0.0003</strong> (0.7310 → 0.7313), inside the ±0.01 fold noise, even though pseudo-label accuracy drops from 89% (singleton) to <strong>69%</strong> (all). So the confident-filter's job isn't protecting the model from bad labels here — the model is robust to the ~31% wrong pseudo-labels because they're outnumbered ~40:1 by real stable data. The reason neither arm helps is the same structural ceiling from the best-model report: <strong>the bottleneck is feature-space class overlap, not data quantity</strong> — the unstable pool lives in exactly the overlapping regions that no amount of (correct or incorrect) extra labels can separate. Per-fold both pseudo arms track the control within ±0.002 on every fold, confirming this isn't averaging out a real signal.
+</div>
+<p class="small"><strong>Practical read:</strong> if you want the unstable/transition pixels labelled anyway (e.g. for a wall-to-wall map), you can pseudo-label all of them with the argmax and pay no macro-F1 cost — the confident-only filter buys nothing on accuracy. But do <em>not</em> expect self-training on this pool to raise the ceiling.</p>
+
+<h3>Do the pseudo-labels help the harder case — TEMPORAL robustness? (LLTO × pseudo)</h3>
+<p class="small">A no-op under spatial CV doesn't rule out a temporal benefit: the unstable pool is exactly the transition/edge pixels, which could plausibly help generalize to an <em>unseen year</em> even if they don't help spatially. So we re-ran the full leave-year-and-block-out protocol (§1) with all pseudo-labels added, head-to-head against the no-pseudo control. <strong>Leak control:</strong> unstable rows from the held-out year are dropped, so no test-year data enters training. The control arm reproduced the standalone LLTO number (0.7210) exactly — the crossing is valid.</p>
+<table>
+  <thead><tr><th>Arm (LLTO, mean over 9 held-out years)</th><th>pseudo rows/fold</th><th>pseudo acc</th><th>LLTO Macro-F1</th><th>Δ vs control</th><th>cls12 spread</th></tr></thead>
+  <tbody>
+    <tr><td><strong>none</strong> — stable train only <span class="tag">control</span></td><td>0</td><td>—</td><td class="best">0.7210</td><td>—</td><td>0.251</td></tr>
+    <tr><td><strong>all</strong> — every unstable row, argmax, no filter</td><td>~14,970</td><td class="num-bad">0.690</td><td>0.7206</td><td class="num-bad">−0.0004</td><td>0.239</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <strong>No — adding all pseudo-labels does not improve temporal robustness.</strong> LLTO macro-F1 is <strong>0.7206 vs 0.7210</strong> (Δ = −0.0004, a no-op within noise), and the two arms are identical to two decimals on <em>every</em> class, including class 12. Crucially, snow/ice's temporal fragility is <strong>unchanged</strong>: its per-year F1 spread is 0.239 (all) vs 0.251 (none) — pseudo-labels neither help nor hurt the one class that drives the whole temporal penalty. This is expected: the temporal gap is snow/ice, and the unstable pool contains <em>no</em> snow/ice signal (it is transition/edge pixels in the overlapping classes), so it has nothing to contribute where it is needed. Per-year, the `all` arm tracks the control within ±0.0012 across all 9 years, including the weak 2020 (0.6999 vs 0.6992). <strong>The pseudo pool is a no-op on both the spatial and the temporal axis.</strong>
+</div>
+
+<!-- ============================================================ -->
+<h2>2c · Train on 2018 only, deploy forward — the "label once" scenario</h2>
+<p class="small">The headline model pools 8 training years. In practice you often label <em>one</em> year and apply the model forward to later years. Does a 2018-only model hold up on 2019–2025, and how much does training on a single year cost versus the all-years model? Same spatial blocks as §1 (so the spatial-generalization penalty is identical — the <em>only</em> change is the training years), leak-free, headline recipe. The <strong>all-years LLTO</strong> column is the §1 model (trained on the other 8 years, tested on the same held-out year+block), so the delta isolates "1 training year vs 8".</p>
+<table>
+  <thead><tr><th>Test year</th><th>train-2018 F1</th><th>all-years LLTO F1</th><th>Δ (2018 − allyears)</th><th></th></tr></thead>
+  <tbody>
+    <tr><td>2018 <span class="tag">in-year ref</span></td><td class="best">0.7269</td><td>0.7077</td><td class="num-good">+0.0192</td><td><div class="bar-wrap"><div class="bar best" style="width:100%"></div></div></td></tr>
+    <tr><td>2019 (+1y)</td><td>0.7144</td><td>0.7293</td><td class="num-bad">−0.0149</td><td><div class="bar-wrap"><div class="bar" style="width:98.3%"></div></div></td></tr>
+    <tr><td>2020 (+2y) <span class="tag bad">weakest</span></td><td class="num-bad">0.6679</td><td>0.6998</td><td class="num-bad">−0.0319</td><td><div class="bar-wrap"><div class="bar" style="width:91.9%"></div></div></td></tr>
+    <tr><td>2021 (+3y)</td><td>0.7125</td><td>0.7241</td><td class="num-bad">−0.0116</td><td><div class="bar-wrap"><div class="bar" style="width:98.0%"></div></div></td></tr>
+    <tr><td>2022 (+4y)</td><td>0.7118</td><td>0.7341</td><td class="num-bad">−0.0223</td><td><div class="bar-wrap"><div class="bar" style="width:97.9%"></div></div></td></tr>
+    <tr><td>2023 (+5y)</td><td>0.7084</td><td>0.7272</td><td class="num-bad">−0.0188</td><td><div class="bar-wrap"><div class="bar" style="width:97.5%"></div></div></td></tr>
+    <tr><td>2024 (+6y)</td><td>0.7055</td><td>0.7238</td><td class="num-bad">−0.0183</td><td><div class="bar-wrap"><div class="bar" style="width:97.1%"></div></div></td></tr>
+    <tr><td>2025 (+7y)</td><td>0.6974</td><td>0.7227</td><td class="num-bad">−0.0253</td><td><div class="bar-wrap"><div class="bar" style="width:96.0%"></div></div></td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <strong>The all-years (8-year) model beats the 2018-only model on every forward year — by ~0.020 macro-F1 on average (0.7026 vs 0.7230).</strong> Two effects stack:
+  <ul style="margin:8px 0 0">
+    <li><strong>A one-time forward-transfer drop:</strong> 2018-only scores 0.7269 in-year but 0.7026 averaged over 2019–2025 — a −0.024 hit for deploying onto <em>any</em> unseen year. It appears immediately at +1y (0.714) and does <strong>not</strong> keep decaying monotonically with horizon (2021–2024 sit ~0.705–0.713); the low point is 2020 (0.668, the intrinsically hard snow year), not 2025.</li>
+    <li><strong>A persistent single-year penalty:</strong> even ignoring drift, one year of training data (~74k rows) vs eight (~590k) costs ~0.020 on forward years. This is the price of 8× less training data <em>and</em> the diversity of seeing multiple years' radiometry.</li>
+  </ul>
+  Per-class, the forward drop mirrors the fragility ranking: <strong>snow/ice −0.07, grassland −0.05, wetland −0.04</strong> take the hit; water/cropland/forest/infra barely move (≤ −0.01). So a 2018-only model is <em>usable</em> forward (still ~0.70) but leaves ~0.02–0.025 on the table versus pooling years, concentrated in exactly the hard classes.
+</div>
+<p class="small"><strong>Answer to "does it perform better than a 2018-only model deployed forward?":</strong> yes — the all-years model is better on all 7 forward years (mean +0.020), and the gap widens on the fragile classes. If only one labelled year is available, expect ~0.70 forward (vs 0.72–0.73 pooled), with a hard floor on snow-variable years like 2020. Pooling multiple training years is the cheap win.</p>
+
+<!-- ============================================================ -->
+<h2>3 · Conformal uncertainty methods</h2>
+<p class="small">The pipeline uses APS both for pseudo-labelling and as its uncertainty notion. This benchmarks 5 conformal score functions × 2 predictors on the headline ensemble, all at target coverage <strong>90%</strong> (α=0.10), plus temperature scaling for point uncertainty. Leak-free: the ensemble is trained on the other spatial folds; within the held-out fold, half calibrates τ and half evaluates. Metrics — <strong>marginal coverage</strong> (should ≈ 0.90), <strong>average set size</strong> (smaller = more informative), <strong>singleton rate</strong>, and <strong>per-class coverage spread</strong> (max−min over classes; the fairness gap APS leaves on rare classes).</p>
+<table>
+  <thead><tr><th>Method (score + predictor)</th><th>coverage</th><th>avg set size</th><th>singleton %</th><th>empty %</th><th>per-class cov spread</th></tr></thead>
+  <tbody>
+    <tr><td><strong>LAC + split</strong> <span class="tag good">tightest sets</span></td><td>0.899</td><td class="best">1.40</td><td class="best">64.8%</td><td>0.0%</td><td>0.288</td></tr>
+    <tr><td>RAPS + split</td><td>0.900</td><td>1.49</td><td>56.1%</td><td>0.2%</td><td>0.268</td></tr>
+    <tr><td>APS + split <span class="tag">current</span></td><td>0.901</td><td>1.68</td><td>51.1%</td><td class="num-bad">2.6%</td><td>0.208</td></tr>
+    <tr><td>Margin + split</td><td>0.900</td><td>1.79</td><td>73.4%</td><td>0.0%</td><td>0.231</td></tr>
+    <tr><td>SAPS + split</td><td>0.900</td><td>2.03</td><td>51.1%</td><td class="num-bad">4.4%</td><td>0.180</td></tr>
+    <tr><td>LAC + mondrian</td><td>0.900</td><td>1.64</td><td>48.7%</td><td>0.2%</td><td class="best">0.035</td></tr>
+    <tr><td>RAPS + mondrian</td><td>0.900</td><td>2.37</td><td>9.9%</td><td>0.0%</td><td>0.031</td></tr>
+    <tr><td>APS + mondrian</td><td>0.901</td><td>2.48</td><td>22.3%</td><td>2.5%</td><td class="best">0.028</td></tr>
+    <tr><td>Margin + mondrian</td><td>0.900</td><td>2.58</td><td>52.3%</td><td>0.0%</td><td>0.031</td></tr>
+    <tr><td>SAPS + mondrian</td><td>0.901</td><td>2.66</td><td>28.3%</td><td>4.3%</td><td>0.047</td></tr>
+  </tbody>
+</table>
+<p class="small">All methods achieve the target 90% marginal coverage (calibration is valid). Differences are in <em>efficiency</em> (set size) and <em>class-conditional fairness</em> (coverage spread).</p>
+
+<div class="callout good">
+  <strong>Two clear, complementary recommendations:</strong>
+  <ul style="margin:8px 0 0">
+    <li><strong>For the tightest / most decisive uncertainty → LAC + split.</strong> Smallest average set (1.40 classes vs APS's 1.68), highest singleton rate (65%), and zero empty sets. If the downstream use is "flag the pixels the model is unsure about" or a confident pseudo-label gate, LAC dominates the current APS on every efficiency axis.</li>
+    <li><strong>For fair per-class guarantees → any score + Mondrian (class-conditional).</strong> Plain split calibration leaves a per-class coverage gap of <strong>0.21–0.29</strong> (rare classes like snow/ice are systematically <em>under</em>-covered — the sets miss the true class more often than the 10% budget allows). Class-conditional calibration collapses that gap to <strong>0.03</strong>, restoring the coverage guarantee for every class, at the cost of larger sets. <strong>LAC + mondrian</strong> is the sweet spot: 0.035 spread at a still-modest 1.64 set size.</li>
+  </ul>
+</div>
+<p class="small"><strong>Why APS looks worst here:</strong> APS and SAPS are the only methods that produce <em>empty</em> sets (2.6% / 4.4%) — rows where even the top class exceeds τ — which is an efficiency (not validity) artefact of the randomized cumulative score, and they carry the largest split-predictor sets among the non-Margin scores. The pipeline chose APS for its adaptivity, but for this problem LAC's simple <code>1 − p̂[y]</code> threshold is both tighter and empty-set-free.</p>
+
+<h3>Point uncertainty — temperature scaling</h3>
+<p class="small">Beyond set-valued conformal, a single scalar confidence is often wanted (for map shading, triage). The ensemble's max-probability is slightly mis-calibrated; a single temperature T fit on the calibration half corrects it.</p>
+<table>
+  <thead><tr><th></th><th>mean T</th><th>ECE before</th><th>ECE after</th><th>reduction</th></tr></thead>
+  <tbody>
+    <tr><td>5-seed ensemble max-prob</td><td>0.78</td><td>0.069</td><td class="best">0.039</td><td class="num-good">−43%</td></tr>
+  </tbody>
+</table>
+<p class="small">Fitted <strong>T ≈ 0.78 &lt; 1</strong> means the ensemble is mildly <em>under</em>-confident (averaging 5 softmaxes flattens the peaks); sharpening by T halves the calibration error (ECE 0.069 → 0.039). <strong>Recommendation:</strong> apply a single temperature (fit on a held-out slice) before using ensemble probabilities as confidence scores or as the input to any conformal method — it's free and improves both calibration and downstream set sizes. Mean OOF accuracy was 0.786.</p>
+
+<!-- ============================================================ -->
+<h2>Overall conclusions</h2>
+<ul class="takeaways">
+  <li><strong>Temporally robust.</strong> Under the strict leave-year-and-block-out protocol the model loses only −0.009 macro-F1 (0.730 → 0.721); per-year F1 sits in 0.700–0.734 with no decay toward newer years. Safe to deploy on a future year's AlphaEarth.</li>
+  <li><strong>Pool your training years.</strong> A 2018-only model deployed forward scores ~0.703 mean over 2019–2025 vs 0.723 for the all-years model — the 8-year model wins on all 7 forward years (+0.020 mean), and the gap concentrates in the fragile classes (snow/ice −0.07, grassland −0.05). A single-year model is usable (~0.70) but pooling years is the cheap win.</li>
+  <li><strong>Snow/ice is the single fragile class on both axes.</strong> It carries the entire temporal penalty (0.24 F1 spread across years, crashing in 2020) and remains the label-noise-limited class from the best-model report. Any further effort should target class 12 specifically — better/fresher glacier labels or a temporal-consistency constraint — not the model.</li>
+  <li><strong>More pseudo-labels won't raise the ceiling — on either axis.</strong> Training on all 16.8k unstable rows (69% pseudo-accuracy, no uncertainty removal) is a no-op under spatial CV (+0.0003) <em>and</em> under the harder temporal LLTO hold-out (−0.0004), leaving even snow/ice's temporal fragility unchanged. The ceiling is feature-space overlap; extra labels in the overlap regions can't move it. Upside: you <em>can</em> pseudo-label the transition pixels at no accuracy cost if you need a complete map.</li>
+  <li><strong>Switch conformal method by use-case.</strong> Use <strong>LAC + split</strong> for the tightest confidence/pseudo-label gate (1.40 vs APS 1.68 set size, no empty sets); use <strong>Mondrian (class-conditional)</strong> calibration whenever per-class coverage guarantees matter (spread 0.29 → 0.03), with <strong>LAC + Mondrian</strong> the best balance. Always temperature-scale (T≈0.78) the ensemble probabilities first — ECE drops 43%.</li>
+</ul>
+
+<h2>Reproduce</h2>
+<pre><code># 1 · Temporal robustness (LLTO, leave-year-and-block-out) — ~54 min A40
+systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 \
+  ~/myprojects/recover/.venv/bin/python DNN/temporal_llto.py
+
+# 2 · All-pseudo-label vs singleton vs control (spatial CV) — ~28 min A40
+env PYTHONUNBUFFERED=1 ~/myprojects/recover/.venv/bin/python DNN/pseudo_all.py
+
+# 2b · Does pseudo help TEMPORAL robustness? LLTO x pseudo — ~2.2 h A40
+env PYTHONUNBUFFERED=1 ARMS=none,all ~/myprojects/recover/.venv/bin/python DNN/temporal_pseudo.py
+
+# 2c · Train on 2018 only, deploy forward vs all-years — ~5 min A40
+env PYTHONUNBUFFERED=1 TRAIN_YEAR=2018 ~/myprojects/recover/.venv/bin/python DNN/train2018_forward.py
+
+# 3 · Conformal method comparison (target 90% coverage) — ~7 min A40
+env ALPHA=0.1 ~/myprojects/recover/.venv/bin/python DNN/conformal_compare.py
+</code></pre>
+
+<footer>
+  Source results: <code>DNN/temporal_llto.json</code>, <code>DNN/pseudo_all.json</code>, <code>DNN/conformal_compare.json</code>.
+  Scripts: <code>DNN/temporal_llto.py</code>, <code>DNN/pseudo_all.py</code>, <code>DNN/conformal_compare.py</code>, <code>DNN/conformal_methods.py</code>.
+  Base model &amp; protocol: <code>DNN/stage3_robust_mlp.py</code> + <code>DNN/data_utils.py</code>.
+  Follow-up to <a href="dnn_replacement_report.html">dnn_replacement_report.html</a> (best model, F1 0.7341). Generated 2026-07-01.
+</footer>
+
+</body>
+</html>

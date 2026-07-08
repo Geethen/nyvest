@@ -1,0 +1,37 @@
+{
+  "stage": "stage3_robust_mlp",
+  "config": {
+    "hidden": [
+      256,
+      128
+    ],
+    "dropout": 0.3,
+    "lr": 0.001,
+    "weight_mode": "sqrt",
+    "label_smooth": 0.05,
+    "n_ensemble": 1,
+    "input_noise": 0.1,
+    "mixup_alpha": 0.2,
+    "clean_cls12": true
+  },
+  "f1_mean": 0.7248,
+  "f1_std": 0.0078,
+  "f1_per_fold": [
+    0.7292,
+    0.7314,
+    0.7138
+  ],
+  "f1_per_class": {
+    "2": 0.5395,
+    "3": 0.7821,
+    "4": 0.7404,
+    "5": 0.5877,
+    "6": 0.6497,
+    "7": 0.6797,
+    "8": 0.9522,
+    "10": 0.8433,
+    "11": 0.7729,
+    "12": 0.7004
+  },
+  "target_tabicl": 0.7139
+}

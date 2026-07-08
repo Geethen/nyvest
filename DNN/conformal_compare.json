@@ -1,0 +1,108 @@
+{
+  "investigation": "conformal_compare",
+  "alpha": 0.1,
+  "target_coverage": 0.9,
+  "cal_frac": 0.5,
+  "n_ensemble": 5,
+  "mean_accuracy": 0.786,
+  "methods": {
+    "LAC+split": {
+      "coverage": 0.8995,
+      "avg_set_size": 1.396,
+      "singleton_rate": 0.6478,
+      "empty_rate": 0.0,
+      "per_class_cov_spread": 0.288
+    },
+    "LAC+mondrian": {
+      "coverage": 0.8999,
+      "avg_set_size": 1.644,
+      "singleton_rate": 0.4866,
+      "empty_rate": 0.0019,
+      "per_class_cov_spread": 0.0354
+    },
+    "Margin+split": {
+      "coverage": 0.9002,
+      "avg_set_size": 1.795,
+      "singleton_rate": 0.7339,
+      "empty_rate": 0.0,
+      "per_class_cov_spread": 0.2308
+    },
+    "Margin+mondrian": {
+      "coverage": 0.9001,
+      "avg_set_size": 2.584,
+      "singleton_rate": 0.5229,
+      "empty_rate": 0.0001,
+      "per_class_cov_spread": 0.0312
+    },
+    "APS+split": {
+      "coverage": 0.9007,
+      "avg_set_size": 1.679,
+      "singleton_rate": 0.5114,
+      "empty_rate": 0.0261,
+      "per_class_cov_spread": 0.2081
+    },
+    "APS+mondrian": {
+      "coverage": 0.9012,
+      "avg_set_size": 2.475,
+      "singleton_rate": 0.2233,
+      "empty_rate": 0.0252,
+      "per_class_cov_spread": 0.0282
+    },
+    "RAPS+split": {
+      "coverage": 0.9004,
+      "avg_set_size": 1.486,
+      "singleton_rate": 0.5607,
+      "empty_rate": 0.0015,
+      "per_class_cov_spread": 0.2684
+    },
+    "RAPS+mondrian": {
+      "coverage": 0.9001,
+      "avg_set_size": 2.374,
+      "singleton_rate": 0.0988,
+      "empty_rate": 0.0003,
+      "per_class_cov_spread": 0.0306
+    },
+    "SAPS+split": {
+      "coverage": 0.9001,
+      "avg_set_size": 2.033,
+      "singleton_rate": 0.5114,
+      "empty_rate": 0.044,
+      "per_class_cov_spread": 0.18
+    },
+    "SAPS+mondrian": {
+      "coverage": 0.9006,
+      "avg_set_size": 2.658,
+      "singleton_rate": 0.2835,
+      "empty_rate": 0.0426,
+      "per_class_cov_spread": 0.0466
+    }
+  },
+  "temperature_scaling": {
+    "per_fold": [
+      {
+        "fold": 0,
+        "T": 0.77,
+        "ece_before": 0.0712,
+        "ece_after": 0.0366,
+        "mean_entropy": 0.9506
+      },
+      {
+        "fold": 1,
+        "T": 0.77,
+        "ece_before": 0.0713,
+        "ece_after": 0.0421,
+        "mean_entropy": 0.9609
+      },
+      {
+        "fold": 2,
+        "T": 0.79,
+        "ece_before": 0.0638,
+        "ece_after": 0.0384,
+        "mean_entropy": 0.9376
+      }
+    ],
+    "ece_before_mean": 0.0688,
+    "ece_after_mean": 0.039
+  },
+  "note": "scores LAC/Margin/APS/RAPS/SAPS x predictors split/mondrian; leak-free: model trained on other spatial folds, cal/eval split within the held-out fold"
+}

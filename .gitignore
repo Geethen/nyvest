@@ -1,6 +1,9 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+
+# DNN frame cache (regenerated from parquet on demand)
+DNN/.cache/
 build/
 dist/
 wheels/
@@ -23,6 +26,7 @@ wandb/
 catboost_info/
 
 # Generated data and checkpoints
+*.parquet
 data/*.parquet
 data/**/*.parquet
 data/*.checkpoint.json
@@ -32,6 +36,7 @@ data/**/*.checkpoint.json
 models/*.cbm
 models/*.npz
 models/*.json
+models/*.pt
 active_learning/models/*.cbm
 active_learning/models/*.npz
 
@@ -42,6 +47,8 @@ active_learning/data/*.checkpoint.json
 active_learning/data/**/*.checkpoint.json
 
 # Generated raster/map outputs
+DNN/data/*.tif
+DNN/data/**/*.tif
 reports/active_learning/*.tif
 reports/active_learning/*.png
 active_learning/reports/*.tif
