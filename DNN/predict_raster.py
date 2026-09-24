@@ -47,6 +47,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import os
 import queue
 import sys
 import threading
@@ -54,13 +55,27 @@ import time
 from pathlib import Path
 
 import numpy as np
-import rasterio
-import torch
+
+# BEFORE rasterio imports GDAL. The GTiff driver decompresses single-threaded by
+# default, which is ~4x off this box's ceiling on a 64-band deflate tile
+# (bench_io_formats.py --thread-sweep). It is NOT a free 4x on top of --readers:
+# reader threads and GDAL's own threads are substitutes for the same cores and
+# saturate together. It is worth having because the reader pool is bounded by
+# --readers while a single large window read is not, and because blocks skipped
+# by the AOI pre-filter leave reader threads idle. Overridable from the
+# environment for anyone who needs to pin cores.
+os.environ.setdefault("GDAL_NUM_THREADS", "ALL_CPUS")
+
+import rasterio                                              # noqa: E402
+import torch                                                 # noqa: E402
 from rasterio.features import geometry_mask
-from rasterio.windows import Window
+from rasterio.windows import Window, bounds as window_bounds
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dnn_core as C  # noqa: E402
+# The one definition of the AEF quantisation, shared with the writer side so the
+# two can never drift into disagreeing about what an int8 tile means.
+from prep_aef_tiles import _DEQUANT_LUT  # noqa: E402
 
 N_AE = 64
 AE_BANDS = [f"A{i:02d}" for i in range(N_AE)]
@@ -81,9 +96,30 @@ def _blocks(width, height, bx, by):
 
 
 def _assemble_features(ae, lid, feat_cols, lidar_med):
-    """Stack AE (+lidar) bands into the model's feat_cols order -> [F, h, w] f32."""
+    """Stack AE (+lidar) bands into the model's feat_cols order -> [F, h, w].
+
+    `ae` may be float32 (dequantised tiles) or int8 (quantised tiles, see
+    `_Dequant`). The output dtype follows `ae`: for int8 the AE columns stay
+    quantised all the way to the GPU and only the lidar columns are float, so
+    this returns a structure the GPU thread finishes rather than a finished
+    array. Keeping one function for both keeps `feat_cols` ordering in one place.
+    """
     band_of = {b: i for i, b in enumerate(AE_BANDS)}
     h, w = ae.shape[1], ae.shape[2]
+    if ae.dtype == np.int8:
+        # AE columns stay int8; lidar columns (at most 3) are built as float32
+        # and carried alongside. See _Dequant.to_gpu for the join.
+        lid_f = None
+        if any(c in LIDAR_COLS for c in feat_cols):
+            lid_f = np.empty((sum(c in LIDAR_COLS for c in feat_cols), h, w),
+                             dtype=np.float32)
+            for j, col in enumerate(c for c in feat_cols if c in LIDAR_COLS):
+                if lid is not None:
+                    b = lid[LIDAR_COLS.index(col)]
+                    lid_f[j] = np.where(np.isfinite(b), b, lidar_med.get(col, 0.0))
+                else:
+                    lid_f[j] = lidar_med.get(col, 0.0)
+        return (ae, lid_f)
     feats = np.empty((len(feat_cols), h, w), dtype=np.float32)
     for fi, col in enumerate(feat_cols):
         if col in band_of:
@@ -97,6 +133,62 @@ def _assemble_features(ae, lid, feat_cols, lidar_med):
         else:
             raise ValueError(f"model feature {col!r} is neither an AE band nor lidar")
     return feats
+
+
+class _Dequant:
+    """Finishes an int8 AE block on the GPU instead of in the reader thread.
+
+    Quantised tiles (`prep_aef_tiles.py --int8`) store the AEF int8 exactly as
+    downloaded; the dequantisation is a 256-entry LUT. Doing that LUT in numpy in
+    the reader costs more than it saves — it is a 268M-element gather per block,
+    and it measured 0.60x the float32 tile, i.e. SLOWER than not quantising at
+    all. On the GPU the same gather runs at ~300 M px/s, ~6x faster than the
+    fastest read, so the read speedup (~4x) survives intact. As a side effect the
+    PCIe transfer shrinks 4x too, since int8 crosses instead of float32.
+
+    Only the columns the model actually asks for are gathered, in `feat_cols`
+    order, so the result is identical to the float32 path by construction.
+    """
+
+    def __init__(self, feat_cols, device):
+        band_of = {b: i for i, b in enumerate(AE_BANDS)}
+        self.ae_src, self.ae_dst, self.lid_dst = [], [], []
+        for fi, col in enumerate(feat_cols):
+            if col in band_of:
+                self.ae_src.append(band_of[col])
+                self.ae_dst.append(fi)
+            elif col in LIDAR_COLS:
+                self.lid_dst.append(fi)
+            else:
+                raise ValueError(f"model feature {col!r} is neither AE nor lidar")
+        self.n_feat = len(feat_cols)
+        self.device = device
+        # index 0 is raw -128 (nodata). The float32 path makes it NaN and the
+        # validity mask drops those pixels before they ever reach here, so the
+        # value is unobservable; 0.0 keeps a stray NaN from poisoning a softmax.
+        lut = _DEQUANT_LUT.copy()
+        lut[0] = 0.0
+        self.lut = torch.as_tensor(lut, device=device)
+        self.ae_src_t = torch.as_tensor(np.array(self.ae_src), device=device)
+        self.ae_dst_t = torch.as_tensor(np.array(self.ae_dst), device=device)
+        self.lid_dst_t = (torch.as_tensor(np.array(self.lid_dst), device=device)
+                          if self.lid_dst else None)
+
+    def to_gpu(self, ae_i8, lid_f, vidx):
+        """(int8 [64,h,w], float32 [L,h,w] | None, valid indices) -> [nvalid, F]."""
+        ae_v = ae_i8.reshape(ae_i8.shape[0], -1)[:, vidx]          # [64, nv] int8
+        t = torch.from_numpy(np.ascontiguousarray(ae_v)).to(self.device)
+        X = torch.empty((vidx.size, self.n_feat), device=self.device,
+                        dtype=torch.float32)
+        # (v + 128) as int16 then index: the LUT is 256 entries, so this is one
+        # gather per element and nothing widens on the host.
+        X[:, self.ae_dst_t] = self.lut[
+            (t.index_select(0, self.ae_src_t).to(torch.int16) + 128).long()].T
+        if self.lid_dst_t is not None:
+            lv = lid_f.reshape(lid_f.shape[0], -1)[:, vidx]
+            X[:, self.lid_dst_t] = torch.from_numpy(
+                np.ascontiguousarray(lv)).to(self.device).T
+        return X
 
 
 def main():
@@ -130,12 +222,16 @@ def main():
                          "nodata. Reprojected to the raster CRS; useful when the "
                          "input rectangle overflows the true study area (e.g. AEF "
                          "tiles overflow the 3-county boundary).")
-    ap.add_argument("--gpu-chunk", type=int, default=262144,
-                    help="rows per GPU forward chunk (bounds activation memory)")
+    ap.add_argument("--gpu-chunk", type=int, default=0,
+                    help="rows per GPU forward chunk (bounds activation memory); "
+                         "0 = the model's own default (Ensemble.default_chunk, "
+                         "which is smaller for a MoE — dense experts hold a "
+                         "chunk x 40 x 64 activation)")
     args = ap.parse_args()
 
     t0 = time.perf_counter()
     ens = C.Ensemble.load(args.model)
+    gpu_chunk = args.gpu_chunk or ens.default_chunk
     feat_cols = ens.feat_cols
     needs_lidar = any(c in feat_cols for c in LIDAR_COLS)
     lidar_med = ens.lidar_med or {}
@@ -147,6 +243,25 @@ def main():
             f"calib.classes={calib.classes} — regenerate dnn_final_calib.npz "
             f"(fit_calibration.py) against the current model, they are indexed "
             f"positionally and a mismatch silently mislabels UQ bands.")
+    # Classes alone are NOT enough to prove a calibration belongs to a model:
+    # the MLP and the MoE share this exact class list, so a calibration fit on
+    # one passed the check above while being applied to the other. Venn-Abers
+    # breakpoints and LAC/Mondrian taus are fit to ONE model's score
+    # distribution; using another's leaves the class map correct but silently
+    # voids the 90% conformal coverage and the calibrated-probability band.
+    if calib is not None and calib.arch is not None and calib.arch != ens.cfg.arch:
+        raise ValueError(
+            f"--model/--calib architecture mismatch: model arch={ens.cfg.arch!r} "
+            f"but {args.calib} was fit on arch={calib.arch!r}. Refit:\n"
+            f"  ARCH={ens.cfg.arch} N_EXPERTS={ens.cfg.n_experts} "
+            f"TOP_K={ens.cfg.top_k} "
+            f"EXPERT_HIDDEN={','.join(str(h) for h in ens.cfg.expert_hidden)} \\\n"
+            f"  OUT=<calib>.npz  python DNN/fit_calibration.py")
+    if calib is not None and calib.arch is None:
+        print(f"  WARNING: {args.calib} predates architecture stamping — it "
+              f"cannot be checked against this {ens.cfg.arch!r} model. If it was "
+              f"fit on a different architecture the class map is still correct "
+              f"but the UQ bands are not calibrated for this model.", flush=True)
     print(f"model: {len(ens.models)} nets, {len(feat_cols)} feats, classes={ens.classes}, "
           f"needs_lidar={needs_lidar}, uq={with_uq}"
           + (f" (calib_method={calib.calib_method})" if with_uq else ""), flush=True)
@@ -229,18 +344,35 @@ def main():
 
     ae_nodata = src.nodata
 
+    # Quantised input (prep_aef_tiles.py --int8) is detected from the dtype, not
+    # a flag: the two encodings are interchangeable inputs and a run should not
+    # depend on the caller remembering which one a VRT points at.
+    ae_int8 = src.dtypes[0] == "int8"
+    dequant = _Dequant(feat_cols, C.DEVICE) if ae_int8 else None
+    if ae_int8:
+        if args.scale:
+            raise SystemExit(
+                "--scale with an int8 (quantised) input: --scale is for P-drive "
+                "tiles that pack scaled floats. Quantised AEF tiles are "
+                "dequantised by the LUT, and dividing the int8 codes first would "
+                "corrupt every embedding.")
+        print(f"  input is int8 (quantised AEF): LUT dequant on {C.DEVICE}",
+              flush=True)
+
     # --aoi: load + reproject the study-area polygons to the raster CRS once.
     # geometry_mask is applied per-block in the reader (a full-grid mask would be
     # ~1 GB of bool at county scale), so we keep the shapely geoms here and rely
     # on each block's own transform. Bail early if the AOI misses the raster
     # entirely — that is almost always a CRS/extent mistake, not an empty map.
     aoi_geoms = None
+    aoi_union = None
     if args.aoi:
         import geopandas as gpd
         from shapely.geometry import box as _box
         gdf = gpd.read_file(args.aoi).to_crs(src.crs)
         aoi_geoms = list(gdf.geometry.values)
-        if not gdf.union_all().intersects(_box(*src.bounds)):
+        aoi_union = gdf.union_all()
+        if not aoi_union.intersects(_box(*src.bounds)):
             raise ValueError(
                 f"--aoi {args.aoi!r} does not intersect the input raster extent "
                 f"(after reprojecting to {src.crs}); check the AOI/CRS.")
@@ -248,14 +380,55 @@ def main():
               flush=True)
 
     wins = list(_blocks(src.width, src.height, args.block, args.block))
+
+    # --aoi block pre-filter: with the AOI union in hand, classify every window by
+    # its bounding box BEFORE any pixels are read — a window whose bbox misses the
+    # AOI entirely is skipped (no 64-band read/decompress, no GPU), a window whose
+    # bbox is fully covered by the AOI needs no per-block geometry_mask (every
+    # pixel is inside), and only genuinely straddling windows pay the per-block
+    # rasterize. For an AOI that fills a fraction of the tile rectangle (AEF tiles
+    # overflow the 3-county boundary by ~67%) this drops most of the I/O, which is
+    # the measured wall (CIFS-bound, ~0.2 M px/s). Windows are still ALL written by
+    # the writer (outside ones as pure-nodata blocks) so the len(wins) completeness
+    # assertion and the UQ-raster nodata fill are unchanged.
+    #   win_kind[i]: 0 = outside (skip read), 1 = fully inside (skip mask),
+    #                2 = straddling (per-block mask).  None-AOI runs are all 2-ish
+    #                (mask is simply never applied).
+    win_kind = None
+    if aoi_union is not None:
+        from shapely import STRtree, box as _sbox, prepared
+        win_boxes = [_sbox(*window_bounds(w, src.transform)) for w in wins]
+        # Vectorized bbox-vs-AOI test via an STRtree over the window boxes: which
+        # boxes intersect / are covered by the AOI union. covered_by ⊆ intersects.
+        tree = STRtree(win_boxes)
+        inter_idx = set(tree.query(aoi_union, predicate="intersects").tolist())
+        # "covers" on the union tells us a window entirely inside the AOI; use a
+        # prepared union so the (potentially many) contains tests are fast.
+        prep = prepared.prep(aoi_union)
+        win_kind = np.full(len(wins), 0, dtype=np.uint8)  # default: outside
+        n_in = n_edge = 0
+        for i in inter_idx:
+            if prep.covers(win_boxes[i]):
+                win_kind[i] = 1
+                n_in += 1
+            else:
+                win_kind[i] = 2
+                n_edge += 1
+        n_out = len(wins) - n_in - n_edge
+        print(f"  --aoi block pre-filter: {n_in} inside, {n_edge} straddling, "
+              f"{n_out} outside skipped (of {len(wins)} blocks)", flush=True)
+
     total_valid = [0]
 
     # ---- pipeline queues ---------------------------------------------------
     read_q: "queue.Queue" = queue.Queue(maxsize=args.readers * 2)   # -> GPU
     write_q: "queue.Queue" = queue.Queue(maxsize=args.readers * 2)  # -> writer
     win_q: "queue.Queue" = queue.Queue()
-    for w in wins:
-        win_q.put(w)
+    for i, w in enumerate(wins):
+        # Carry the pre-filter verdict alongside each window (2 = "apply per-block
+        # AOI mask" / no-AOI default). The reader uses it to skip the read of
+        # outside blocks and the rasterize of fully-inside ones.
+        win_q.put((w, 2 if win_kind is None else int(win_kind[i])))
     lid_path = args.lidar_raster if (needs_lidar and args.lidar_raster) else None
 
     # Any worker thread that raises records it here and sets `errored`. Without
@@ -269,6 +442,24 @@ def main():
         err_box.append(exc)
         errored.set()
 
+    def _drain(q):
+        """Empty `q` so no producer stays parked in a blocking put on it.
+
+        Readers put into read_q with a blocking put, and read_q is bounded. If
+        the GPU thread stops consuming while readers are parked in that put,
+        nothing ever wakes them: the reader threads never reach their own
+        `errored` check, main blocks forever in `for r in readers: r.join()`,
+        and the run HANGS instead of raising "inference aborted". After a drain
+        each reader completes at most one more put before its next `errored`
+        check, and read_q holds `readers * 2` — so there is always room, both
+        for those and for main's poison pill.
+        """
+        try:
+            while True:
+                q.get_nowait()
+        except queue.Empty:
+            pass
+
     def reader():
         # per-thread dataset handles: decompression is the wall on compressed
         # 64-band tiles, and one shared handle serializes reads. Separate GDAL
@@ -278,10 +469,26 @@ def main():
         try:
             while not errored.is_set():
                 try:
-                    win = win_q.get_nowait()
+                    win, kind = win_q.get_nowait()
                 except queue.Empty:
                     return
-                ae = rsrc.read(range(1, N_AE + 1), window=win).astype(np.float32)
+                if kind == 0:
+                    # Window entirely outside the AOI (bbox test in the pre-filter).
+                    # Skip the 64-band read/decompress and feature build entirely;
+                    # emit an all-invalid block so the GPU thread forwards it as a
+                    # pure-nodata write. This is the I/O win — outside blocks never
+                    # touch the (CIFS-bound) raster.
+                    valid = np.zeros((int(win.height), int(win.width)), dtype=bool)
+                    read_q.put((win, None, valid))
+                    continue
+                # Quantised tiles stay int8 here — see _Dequant for why the LUT
+                # runs on the GPU. The masks below are all order-preserving
+                # comparisons (== nodata, == 0), so they read the same on the
+                # int8 codes as on the dequantised floats: the LUT is strictly
+                # monotone and maps 0 -> 0.0 and -128 -> nodata.
+                ae = rsrc.read(range(1, N_AE + 1), window=win)
+                if not ae_int8:
+                    ae = ae.astype(np.float32)
                 # nodata / zero / finite tests must run on the RAW values, BEFORE
                 # --scale divides the bands: comparing scaled data against the
                 # source's unscaled nodata (e.g. -32768 -> -32.768) would never
@@ -290,15 +497,19 @@ def main():
                 valid = np.ones(ae.shape[1:], dtype=bool)
                 if ae_nodata is not None:
                     valid &= ~np.any(ae == ae_nodata, axis=0)
-                valid &= np.all(np.isfinite(ae), axis=0)
+                if not ae_int8:                 # integers are always finite
+                    valid &= np.all(np.isfinite(ae), axis=0)
                 if args.mask_allzero:
                     # VRT gaps between tiles (and untiled AE nodata) read as all
                     # bands == 0. A genuine AlphaEarth embedding is unit-norm, so
                     # an all-zero pixel is never real data — exclude it.
                     valid &= ~np.all(ae == 0, axis=0)
-                if aoi_geoms is not None:
+                if aoi_geoms is not None and kind != 1:
                     # Drop pixels outside the study-area polygons. Rasterize the
                     # AOI on THIS block's transform (invert=True -> True inside).
+                    # kind==1 means the pre-filter proved this block's bbox is fully
+                    # covered by the AOI, so every pixel is inside -> skip the
+                    # per-block rasterize (a pure win, identical result).
                     win_transform = rsrc.window_transform(win)
                     inside = geometry_mask(
                         aoi_geoms, out_shape=valid.shape,
@@ -322,6 +533,10 @@ def main():
         try:
             while True:
                 if errored.is_set():
+                    # Another thread failed (typically the writer — a full disk
+                    # is the usual cause). Drain before leaving, or the readers
+                    # parked on a full read_q are never released.
+                    _drain(read_q)
                     return
                 item = read_q.get()
                 if item is None:
@@ -344,10 +559,14 @@ def main():
                     ublocks = None
                 vidx = np.flatnonzero(valid.ravel())
                 if vidx.size:
-                    Xv = feats.reshape(len(feat_cols), -1)[:, vidx].T   # [nvalid, F]
-                    X_t = torch.as_tensor(np.ascontiguousarray(Xv), device=C.DEVICE)
+                    if dequant is not None:
+                        # int8 tile: gather + LUT on-device (4x less over PCIe)
+                        X_t = dequant.to_gpu(feats[0], feats[1], vidx)
+                    else:
+                        Xv = feats.reshape(len(feat_cols), -1)[:, vidx].T  # [nvalid, F]
+                        X_t = torch.as_tensor(np.ascontiguousarray(Xv), device=C.DEVICE)
                     if with_uq:
-                        full = ens.predict_full_gpu(X_t, calib, args.gpu_chunk)
+                        full = ens.predict_full_gpu(X_t, calib, gpu_chunk)
                         out_cls.ravel()[vidx] = full["pred_class"]
                         # scale proba -> uint16, clip so a rounded 1.0 can't hit
                         # the nodata sentinel (65535).
@@ -357,7 +576,7 @@ def main():
                         u_ss.reshape(h * w)[vidx] = full["set_size"].astype(np.uint8)
                         u_inset.reshape(C_, h * w)[:, vidx] = full["included"].T.astype(np.uint8)
                     else:
-                        cls = ens.predict_classmap_gpu(X_t, args.gpu_chunk).cpu().numpy()
+                        cls = ens.predict_classmap_gpu(X_t, gpu_chunk).cpu().numpy()
                         out_cls.ravel()[vidx] = cls
                     total_valid[0] += vidx.size
                 # timeout-loop the put so a dead writer (full write_q that never
@@ -371,11 +590,7 @@ def main():
         except BaseException as exc:  # noqa: BLE001 — surface, don't swallow
             _fail(exc)
             # unblock any reader parked on a full read_q so join() can return
-            try:
-                while True:
-                    read_q.get_nowait()
-            except queue.Empty:
-                pass
+            _drain(read_q)
 
     def writer():
         done = [0]

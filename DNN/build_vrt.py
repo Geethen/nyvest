@@ -52,8 +52,14 @@ def main():
 
     width = int(round((maxx - minx) / res_x))
     height = int(round((maxy - miny) / (-res_y)))
+    # "int8" -> "Int8" is what makes a `prep_aef_tiles.py --int8` mosaic work:
+    # without it this raised KeyError and the quantised path could not be
+    # mosaicked at all. Int8 is a real VRT dataType from GDAL 3.7 on (this venv
+    # is 3.12) and rasterio reads the band back as int8, which is exactly what
+    # predict_raster.py's dtype auto-detect keys off — mapping it to Byte
+    # instead would silently turn every negative embedding code into 128..255.
     gdal_dtype = {"float64": "Float64", "float32": "Float32",
-                  "int16": "Int16", "uint8": "Byte"}[dtype]
+                  "int16": "Int16", "int8": "Int8", "uint8": "Byte"}[dtype]
 
     lines = [f'<VRTDataset rasterXSize="{width}" rasterYSize="{height}">',
              f'  <SRS>{escape(crs_wkt)}</SRS>',

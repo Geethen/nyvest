@@ -53,7 +53,15 @@ reports/active_learning/*.tif
 reports/active_learning/*.png
 active_learning/reports/*.tif
 active_learning/reports/*.png
+aef_bench_raw/
+aef_bench_prepped/
 
 # Large intermediate research artifacts
 common_ground/reports/**/*.npz
 reports/*.npz
+reports/methods/work/
+
+# Reproducible experiment records
+DNN/autoresearch/results*/
+DNN/ar3/results*/
+DNN/research/results/

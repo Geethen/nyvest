@@ -49,8 +49,12 @@ s5cmd --no-sign-request --endpoint-url https://data.source.coop \
 # 5. preprocess: dequant int8->float32, reproject 31N/32N->32633, flip north-up,
 #    snap to a shared 10 m lattice. Idempotent (skips existing outputs), so
 #    re-running after adding more raw tiles only processes the new ones.
+#    --int8 keeps the source quantisation (int8+ZSTD instead of dequantised
+#    float32+DEFLATE): lossless, ~20% smaller, and ~4x faster to read, which is
+#    what the whole run is bound by. predict_raster.py auto-detects the dtype
+#    and runs the dequant LUT on the GPU.
 $PY DNN/prep_aef_tiles.py --glob "$BASE/aef_2024/**/*.tiff" \
-    --out-dir "$BASE/aef_2024_32633/" --workers 4
+    --out-dir "$BASE/aef_2024_32633/" --workers 4 --int8
 
 # 6. mosaic into one VRT
 $PY DNN/build_vrt.py --glob "$BASE/aef_2024_32633/*.tif" --out "$BASE/aef_2024.vrt"
@@ -100,11 +104,20 @@ $PY DNN/build_lidar_coverage_mask.py --lidar "$BASE/lidar_3band.tif" \
 #     three typed rasters (uq_2024_pcal.tif uint16 proba, uq_2024_setsize.tif
 #     uint8, uq_2024_inset.tif uint8) — ~3x smaller than the old 21-band float32
 #     stack (~10 GB vs ~31 GB) and each opens on its own. See "UQ output" below.
+#     --model/--calib are NOT optional: the defaults are the OLD MLP
+#     (models/dnn_final.pt), so omitting them silently runs the superseded
+#     model. The deployed artifact is the 5-seed moe_shared MoE. --calib must
+#     be the calibration fit on THAT architecture — predict_raster.py refuses
+#     the pair if the npz's arch stamp disagrees, because the class lists are
+#     identical and would not catch it.
 $PY DNN/predict_raster.py --in "$BASE/aef_2024.vrt" \
     --out "$BASE/classified_2024.tif" --uq-out "$BASE/uq_2024.tif" \
+    --model models/dnn_final_moe8.pt --calib models/dnn_final_moe8_calib.npz \
     --lidar-raster "$BASE/lidar_3band.tif" --aoi "$AOI" \
     --readers 6 --mask-allzero
-#     ^ NO --scale: prep_aef_tiles.py output is already unit-norm float32.
+#     ^ NO --scale: prep_aef_tiles.py output is unit-norm (float32) or raw
+#       quantisation codes (--int8), never the ~1000x-scaled P-drive packing.
+#       Scale is per-source — measure median L2/px before trusting either.
 
 # 11. write a manifest documenting every output (class legend, bands, encodings,
 #     nodata) so the end user doesn't reverse-engineer the GeoTIFF tags.
@@ -239,6 +252,17 @@ quantity: the first two were computed against an incomplete AEF grid (see
 real figure for the full 3-county AOI.
 
 ## Inference throughput: I/O-bound on the P-drive, not GPU-bound
+
+> **The UQ path used to break that rule (fixed 2026-08-07).** With `--uq-out`,
+> `Ensemble.predict_full_gpu` applied Venn-Abers on the host — 20 binary
+> searches into ~330k-entry breakpoint arrays per row — inside the single GPU
+> thread, so it stalled the reader pool behind it. Measured at 400k rows: 962 ms
+> of a 1238 ms step, 80% of the stage, a hard **0.42 M px/s ceiling** that no
+> amount of read speedup could pass. It is now on the device
+> (`Calibration.predict_proba_calibrated_gpu` / `predict_sets_gpu`,
+> bit-identical for venn_abers), and the UQ stage measures **1.57 M px/s at the
+> production 2048² block** — back under the I/O wall, where it belongs. If you
+> are comparing against the 69-min 2024 run, that run paid the old cost.
 
 `predict_raster.py`'s pipeline (reader threads → GPU → writer) is designed to
 be decompression-bound on local disk (DATA_INFERENCE's original benchmark:
@@ -402,6 +426,70 @@ dequant/reproject front-end is reusable as the ingest stage of that pipeline.
 (`zarr`/`icechunk`/`s3fs`/`obstore` are NOT yet in the venv — `dask`/`xarray`/
 `rioxarray`/`fsspec` are.) The CIFS I/O bottleneck (see "Inference throughput")
 would also be a strong argument for staging data locally in this scenario.
+
+## `aef_loader_plus`: the lazy-cube path (built + benchmarked)
+
+The cloud-native-array direction above is now partly realised. `DNN/aef_loader_plus/`
+is a local fork of [jakenotjay/aef-loader](https://github.com/jakenotjay/aef-loader)
+(obstore + virtual-tiff/virtualizarr + odc-geo: a lazy, dask-backed multi-zone
+xarray cube over source.coop) carrying six changes ported from our own pipeline
+(`fetch_aef_sourcecoop.py` / `prep_aef_tiles.py` / `build_vrt.py`). It runs in the
+**pixi `geo` env** (`/home/geethen.singh/.pixi/envs/geo/bin/python`), wired in via a
+`.pth`; it is NOT installed in the recover venv. Full per-change writeup and
+re-run recipe in [`aef_loader_plus/NOTES.md`](aef_loader_plus/NOTES.md);
+`CHANGES.diff` is the exact upstream-PR-able diff.
+
+**Three-way end-to-end benchmark** (single-county AOI, 20×15 km, 1 tile, zone 32N,
+live source.coop; all three produce **identical** output — dequant float32 →
+EPSG:32633 @10m, mean −0.006313, 3.0M valid px; single-run ±~20% network jitter):
+
+| pipeline | total | notes |
+|---|---:|---|
+| **old** (vsicurl + WarpedVRT, our `fetch_aef_sourcecoop` path) | **41.3 s** | many HTTP-500 retries (the proxy range-storm) |
+| **stock aef-loader** | **122.2 s** | 103 s of it is the `chunks=None` footgun (below) |
+| **aef_loader_plus** (cold) | **25.5 s** | ~58× on the open/build step; 0 HTTP-500s |
+| **aef_loader_plus** (warm manifest cache) | **25.8 s** | parse 1.8→0.4 s; now network-read-bound |
+
+So: **~4.8× faster than stock aef-loader and ~1.6× faster than our old vsicurl
+path**, on identical output. The whole story is one latent upstream bug: stock's
+docstring-**recommended** `chunks=None` silently materialises the entire
+8192²×64 tile (~100 s/tile, 25 GB RAM on a multi-zone AOI); the port opens at the
+COG's native block size instead, dropping that step to ~1.8 s. Beyond ~25 s the
+pipeline is **network-pixel-read bound**, so further speed comes from read
+parallelism, not the loader. Multi-zone totals scale with tile count on all three
+(this benchmark is one tile — a full-AOI pass is proportionally longer).
+
+**When to use which:** `aef_loader_plus` for a one-shot whole-AOI/analysis pass
+(fastest, most robust, no on-disk mosaic to manage). The `s5cmd` +
+`prep_aef_tiles.py` + VRT path above still wins when the prepped mosaic is
+**reused** across many inference runs (amortised prep → network-free re-reads) and
+for latency-sensitive windowed scoring.
+
+**Upstreaming the fork (PR process).** The six changes are worth contributing back
+so we stop maintaining a vendored fork. Upstream is a **solo-maintainer** repo
+(jakenotjay), Apache-2.0, `uv`-managed, pytest (`tests/test_<module>.py` mirroring
+each source module, `asyncio_mode=auto`), no CONTRIBUTING file, and **no external
+PR has been merged yet** — so the process is:
+1. **Open an issue first for item A** (the `chunks=None` ~100 s/tile
+   materialisation bug) with the two-line repro + before/after numbers. It's a bug
+   in their *recommended* usage — strongest card, and it earns a maintainer read
+   before any code review.
+2. **Fork cleanly** (`gh repo fork jakenotjay/aef-loader --clone`; `uv sync`) — do
+   NOT push from the vendored `aef_loader_plus/` copy. Re-derive each change from
+   `CHANGES.diff` against the fresh checkout (its paths are absolute).
+3. **One PR per change, smallest/safest first** so early merges build trust:
+   **B** LUT dequant → **D** `bbox_crs` densified query → **F** int8 resampling
+   guard → **E** `aoi_geobox` helper → **C** manifest cache → **A** `chunks=None`
+   fix + **G** `fill_value` (the correctness/perf bugfixes last, linking the
+   step-1 issue).
+4. **Each PR carries its own test** ported into the matching `tests/test_*.py`
+   (the offline regression checks in `NOTES.md` are the gate); keep live-cloud
+   checks `@pytest.mark`-gated like `test_source_coop.py` so they don't run in
+   their CI. Use conventional-commit titles (`feat:`/`fix:`) to match their style.
+
+Treat upstreaming as best-effort — item A as a bug **report** delivers value even
+if no code merges, and nyvest is not blocked either way (the fork already works in
+the `geo` env). See the `aef-loader-vs-ours` memory for the full benchmark history.
 
 ## Running inference once you have the data
 

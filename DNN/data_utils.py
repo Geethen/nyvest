@@ -36,13 +36,37 @@ EMBED_COLS = [f"A{i:02d}" for i in range(64)]
 LIDAR_COLS = ["elevation", "tri", "tch"]
 TARGET = "class"
 MERGE_MAP = {1: 2, 9: 8}
+# Optional EXTRA merges on top of the reference 1->2 / 9->8, as "src:tgt[,...]".
+# Kept out of MERGE_MAP so every published number stays reproducible by default;
+# set it explicitly to change the label space. The ontology this maps onto (see
+# DNN/confusion_matrix.py, the authoritative codebook):
+#   2 rock+sand (bare ground)   11 sparse-veg
+# so MERGE_EXTRA="11:2" is the bare-ground + sparse-vegetation merge.
+# NOTE: anything that caches a label vector must key on `merge_sig()` — the
+# labels change without the parquet changing. dnn_core.load_cached does.
+MERGE_EXTRA = os.environ.get("MERGE_EXTRA", "")
 N_FOLDS = 3
 SEED = 0
 
 
+def merge_map() -> dict:
+    """The active label merge: the reference map plus any $MERGE_EXTRA."""
+    m = dict(MERGE_MAP)
+    for pair in MERGE_EXTRA.split(","):
+        if pair.strip():
+            src, tgt = pair.split(":")
+            m[int(src)] = int(tgt)
+    return m
+
+
+def merge_sig() -> str:
+    """Stable string id of the active merge, for cache keys."""
+    return "-".join(f"{s}to{t}" for s, t in sorted(merge_map().items()))
+
+
 def merge_classes(y: np.ndarray) -> np.ndarray:
     y = y.copy().astype(int)
-    for src, tgt in MERGE_MAP.items():
+    for src, tgt in merge_map().items():
         y[y == src] = tgt
     return y
 
@@ -175,7 +199,13 @@ def apply_cls12_relabel(y_enc, classes, mode):
         return y_enc.copy(), 0
     z = np.load(FULL_CLEANLAB_NPZ)
     remap = {c: i for i, c in enumerate(classes)}
-    suggested = np.vectorize(remap.get)(z["suggested_all"]).astype(y_enc.dtype)
+    # `suggested_all` was written under the REFERENCE merge, so it can still
+    # contain values that the active merge folds away (e.g. 11 under
+    # MERGE_EXTRA="11:2"). Re-merge before remapping — without this,
+    # remap.get() returns None for those and the astype below produces garbage
+    # labels rather than an error. merge_classes is idempotent for 1->2 / 9->8.
+    suggested = np.vectorize(remap.get)(
+        merge_classes(z["suggested_all"])).astype(y_enc.dtype)
     c12 = classes.index(12)
     y_new = y_enc.copy()
     if mode == "cls12_fix":

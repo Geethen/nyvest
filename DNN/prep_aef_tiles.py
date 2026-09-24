@@ -50,6 +50,7 @@ import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 
 import numpy as np
@@ -90,7 +91,7 @@ def _dst_blocks(width, height, bx, by):
 
 
 def prep_one(inp: str, out_dir: str, overwrite: bool = False,
-             block: int = 2048) -> tuple[str, str, float]:
+             block: int = 2048, int8: bool = False) -> tuple[str, str, float]:
     """Dequantize + reproject one AEF tile to EPSG:32633 north-up float32.
 
     Returns (input_path, output_path, seconds). Idempotent: skips if the output
@@ -137,9 +138,24 @@ def prep_one(inp: str, out_dir: str, overwrite: bool = False,
 
         prof = src.profile.copy()
         prof.update(driver="GTiff", crs=DST_CRS, transform=dst_transform,
-                    width=dst_w, height=dst_h, count=N_AE, dtype="float32",
-                    nodata=np.nan, compress="deflate", tiled=True,
+                    width=dst_w, height=dst_h, count=N_AE, tiled=True,
                     blockxsize=512, blockysize=512, bigtiff="IF_SAFER")
+        if int8:
+            # Keep the quantisation. `_DEQUANT_LUT` has 256 entries and the warp
+            # is nearest, so the float32 output below carries exactly 8 bits per
+            # value in 32 — and DEFLATE hiding that on disk does not help, because
+            # every read still has to inflate 4 bytes/value with zlib. Staying
+            # int8 + ZSTD and doing the LUT on the GPU (predict_raster.py detects
+            # this dtype) measured ~4x on the read stage, with 20% smaller files.
+            # 512 blocks deliberately match predict_raster.py's read windows:
+            # 1024 blocks read in 512 windows inflate 4 blocks to use 1 (2.3x).
+            prof.update(dtype="int8", nodata=AEF_NODATA,
+                        compress="zstd", zstd_level=1, predictor=1)
+        else:
+            # predictor=3 is NOT worth trying here: on 256 quantisation levels a
+            # float predictor loses to plain byte entropy coding, 0.48x read and
+            # a 3x bigger file (bench_io_formats.py).
+            prof.update(dtype="float32", nodata=np.nan, compress="deflate")
 
         tmp_out = out_path + ".tmp"
         with WarpedVRT(src, crs=DST_CRS, transform=dst_transform,
@@ -152,7 +168,8 @@ def prep_one(inp: str, out_dir: str, overwrite: bool = False,
             for win in _dst_blocks(dst_w, dst_h, block, block):
                 raw = vrt.read(range(1, N_AE + 1), window=win,
                                out_dtype="int16")     # warped int8 (-128 margins)
-                dst.write(dequantize_lut(raw), window=win)   # -> float32, NaN nodata
+                dst.write(raw.astype(np.int8) if int8
+                          else dequantize_lut(raw), window=win)
         os.replace(tmp_out, out_path)                  # atomic: no half-written tile
 
     return inp, out_path, time.perf_counter() - t0
@@ -171,6 +188,14 @@ def main():
     ap.add_argument("--block", type=int, default=2048,
                     help="dest-grid window size (px); ~block^2 x 64 x int16 RAM "
                          "per read (2048 -> ~0.5 GB)")
+    ap.add_argument("--int8", action="store_true",
+                    help="keep the source quantisation: write int8 + ZSTD "
+                         "instead of dequantised float32 + DEFLATE. Lossless "
+                         "(the dequant is a 256-entry LUT and the warp is "
+                         "nearest), ~4x faster to read, 20% smaller. "
+                         "predict_raster.py auto-detects the dtype and moves "
+                         "the LUT to the GPU; nothing else in the stack needs "
+                         "to change. See DNN/README.md.")
     ap.add_argument("--overwrite", action="store_true",
                     help="re-process tiles whose output already exists")
     args = ap.parse_args()
@@ -187,23 +212,72 @@ def main():
 
     t0 = time.perf_counter()
     done = 0
+    # One bad tile must not cost the batch. source.coop serves sporadic HTTP
+    # 500s that surface as a bogus "ZSTDDecode: Unknown frame descriptor", and a
+    # truncated download raises mid-read — both used to propagate out of the
+    # result loop, tear the pool down, and cancel every tile still in flight.
+    # Failures are collected instead, and only reported (nonzero exit) at the
+    # end. Because prep_one is idempotent and writes via os.replace, recovery is
+    # just re-running the same command: finished tiles are skipped, the failed
+    # ones retried, and no half-written tile is ever trusted.
+    failures: list[tuple[str, str]] = []
     if args.workers == 1:
         for f in files:
-            inp, out, dt = prep_one(f, args.out_dir, args.overwrite, args.block)
+            try:
+                inp, out, dt = prep_one(f, args.out_dir, args.overwrite, args.block, args.int8)
+            except Exception as e:
+                failures.append((f, f"{type(e).__name__}: {e}"))
+                print(f"  [FAIL] {Path(f).name}  {type(e).__name__}: {e}", flush=True)
+                continue
             done += 1
             print(f"  [{done}/{len(files)}] {Path(out).name}  "
                   f"{'skipped (exists)' if dt == 0 else f'{dt:.1f}s'}", flush=True)
     else:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
-            futs = {ex.submit(prep_one, f, args.out_dir, args.overwrite, args.block): f
+            # args.int8 MUST be forwarded here too: it was missing, so
+            # `--int8 --workers 4` (the documented recipe) silently wrote
+            # float32 tiles and dropped the whole ~4x read speedup with no error.
+            futs = {ex.submit(prep_one, f, args.out_dir, args.overwrite,
+                              args.block, args.int8): f
                     for f in files}
+            pending = dict(futs)
             for fut in as_completed(futs):
-                inp, out, dt = fut.result()
+                f = pending.pop(fut)
+                try:
+                    inp, out, dt = fut.result()
+                except BrokenProcessPool as e:
+                    # A worker died outright (a segfault in GDAL/zstd, or the
+                    # OOM killer). The pool cannot be reused and cannot say
+                    # WHICH tile killed it, so stop here and report every
+                    # outstanding tile as aborted rather than blaming this one.
+                    # The re-run sorts it out: whatever landed is skipped,
+                    # whatever did not is retried.
+                    aborted = [f, *pending.values()]
+                    failures.extend((g, f"aborted (worker pool died: {e})")
+                                    for g in aborted)
+                    print(f"  [FAIL] worker pool died: {e}\n"
+                          f"         {len(aborted)} tile(s) aborted", flush=True)
+                    break
+                except Exception as e:
+                    failures.append((f, f"{type(e).__name__}: {e}"))
+                    print(f"  [FAIL] {Path(f).name}  {type(e).__name__}: {e}", flush=True)
+                    continue
                 done += 1
                 print(f"  [{done}/{len(files)}] {Path(out).name}  "
                       f"{'skipped (exists)' if dt == 0 else f'{dt:.1f}s'}", flush=True)
-    print(f"done: {done} tile(s) in {time.perf_counter()-t0:.1f}s -> {args.out_dir}",
-          flush=True)
+    print(f"done: {done}/{len(files)} tile(s) in {time.perf_counter()-t0:.1f}s "
+          f"-> {args.out_dir}", flush=True)
+
+    if failures:
+        # Exit nonzero so prep_year.py's returncode check stops the pipeline
+        # here: building a VRT over a partial tile set silently produces a
+        # partial map, which is exactly the failure prep_year.py exists to catch.
+        print(f"\n{len(failures)} tile(s) FAILED:", flush=True)
+        for f, err in failures:
+            print(f"  {Path(f).name}: {err}", flush=True)
+        raise SystemExit(
+            f"{len(failures)} of {len(files)} tile(s) failed. Re-run the same "
+            f"command to retry them — completed tiles are skipped.")
 
 
 if __name__ == "__main__":

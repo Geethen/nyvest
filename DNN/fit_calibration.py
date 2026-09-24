@@ -100,7 +100,15 @@ def main():
         print(f"  fold {k}: F1={f1:.4f}  val_f1={ens.val_f1:.4f}  "
               f"{time.perf_counter()-ft:.1f}s", flush=True)
     oof_f1 = float(np.mean(f1s))
-    print(f"OOF macro-F1 = {oof_f1:.4f} (CV reference 0.7341)", flush=True)
+    # 0.7341 is the 10-CLASS reference. Macro-F1 averages over the classes that
+    # exist, so it means nothing for a run that merged some — print the merge and
+    # let $CV_REFERENCE_F1 carry the right figure rather than inviting a
+    # cross-ontology comparison.
+    _ref = float(os.environ.get("CV_REFERENCE_F1", 0.7341))
+    _merge = du.merge_sig()
+    print(f"OOF macro-F1 = {oof_f1:.4f} (reference {_ref:.4f}"
+          f"{'' if _merge == '1to2-9to8' else f', merge={_merge} — 10-class refs do NOT apply'})",
+          flush=True)
 
     # ---- LAC + Mondrian conformal thresholds (fit on the FULL OOF set) ----
     y_true = ytr_full  # calibrate against the same labels the final model trains on
@@ -177,10 +185,17 @@ def main():
         save_kwargs[f"va_p0_{c}"] = p0
         save_kwargs[f"va_p1_{c}"] = p1
         save_kwargs[f"va_c_{c}"] = cpts
+    # Stamp the architecture these calibrators were fit on. Classes alone cannot
+    # identify the model — the MLP and the moe_shared MoE have the same class
+    # list — and a calibration silently reused across architectures keeps the
+    # class map correct while voiding the conformal coverage guarantee.
+    # predict_raster.py refuses the pair when these disagree.
+    save_kwargs["arch"] = np.array(cfg.arch)
     np.savez(OUT, **save_kwargs)
 
     meta = {
         "artifact": str(OUT), "alpha": ALPHA, "classes": classes,
+        "arch": cfg.arch,
         "oof_macro_f1": round(oof_f1, 4),
         "conformal": conf_metrics,
         "calib_method": winner,

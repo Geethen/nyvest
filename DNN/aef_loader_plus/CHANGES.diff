@@ -1,0 +1,666 @@
+--- /tmp/claude-210017880/-home-geethen-singh-myprojects-nyvest/a231e9a2-3f9e-4f36-aa97-a0166bfad643/scratchpad/aef-loader/aef_loader/reader.py	2026-07-08 11:13:33.907085106 +0200
++++ /home/geethen.singh/myprojects/nyvest/DNN/aef_loader_plus/aef_loader/reader.py	2026-07-08 12:26:33.797174645 +0200
+@@ -15,6 +15,7 @@
+ import datetime as dt
+ import logging
+ from collections import defaultdict
++from pathlib import Path
+ from typing import TYPE_CHECKING, Literal
+ 
+ import xarray as xr
+@@ -26,7 +27,8 @@
+ from virtualizarr.registry import ObjectStoreRegistry
+ from xarray import DataTree
+ 
+-from aef_loader.constants import SOURCE_COOP_REGION
++from aef_loader.cache import load_cached_manifest, save_manifest
++from aef_loader.constants import AEF_NODATA_VALUE, SOURCE_COOP_REGION
+ from aef_loader.utils import set_aef_nodata
+ 
+ if TYPE_CHECKING:
+@@ -148,6 +150,47 @@
+     return GeoBox(shape=(height, width), affine=affine, crs=crs)
+ 
+ 
++def _nodata_fill_for(ds: xr.Dataset):
++    """Join/concat fill value in the dataset's own dtype (no dtype promotion).
++
++    For integer (raw/quantized) data, returns the AEF nodata sentinel (-128) cast
++    to that integer dtype, so an outer-join gap-fill stays int8 instead of being
++    promoted to float64 by a NaN fill. For float (dequantized) data, returns NaN,
++    the natural nodata for floats. Mixed/absent vars fall back to NaN.
++    """
++    import numpy as np
++
++    for var in ds.data_vars:
++        dtype = ds[var].dtype
++        if np.issubdtype(dtype, np.integer):
++            return dtype.type(AEF_NODATA_VALUE)
++        return np.nan
++    return np.nan
++
++
++def _native_block_chunks(manifest_store) -> dict[str, int]:
++    """Chunk sizes matching the COG's stored block grid, keyed by dim name.
++
++    Reads the first array's Zarr chunk shape from the manifest (e.g. (1, 1024,
++    1024) for AEF: one band, one 1024x1024 block) and maps it onto the dataset's
++    dimension names. Opening with these chunks gives one dask block per stored
++    COG block, so ``expand_dims``/``concat`` stay graph-only and a windowed read
++    fetches just the overlapping blocks. Falls back to ``{}`` (let open_zarr
++    choose) if the grid can't be read, so this never breaks opening.
++    """
++    try:
++        group = manifest_store._group
++        name, marr = next(iter(group.arrays.items()))
++        chunk_shape = marr.metadata.chunk_grid.chunk_shape
++        dim_names = marr.metadata.dimension_names
++        if dim_names is None or len(dim_names) != len(chunk_shape):
++            # AEF arrays are (band, y, x); use that when names are absent.
++            dim_names = ("band", "y", "x")[: len(chunk_shape)]
++        return {dim: int(size) for dim, size in zip(dim_names, chunk_shape)}
++    except Exception:  # noqa: BLE001 — chunk hinting is best-effort
++        return {}
++
++
+ class VirtualTiffReader:
+     """
+     COG reader using virtual-tiff to create virtual zarr stores.
+@@ -188,14 +231,25 @@
+     def __init__(
+         self,
+         gcp_project: str | None = None,
++        manifest_cache_dir: str | Path | None = None,
+     ):
+         """
+         Initialize the virtual TIFF reader.
+ 
+         Args:
+             gcp_project: GCP project ID for requester-pays buckets (GCS only)
++            manifest_cache_dir: Directory in which to cache parsed COG manifests.
++                When set, each tile's virtual-tiff header parse (~1.6 s/tile) is
++                serialised to disk on first open and reloaded (~15 ms) on later
++                opens, so repeated runs over the same tiles skip the parse. Only
++                header-derived metadata is cached — no pixel data — and reads
++                return bit-identical results. When None (default), no on-disk
++                cache is used and every open reparses (upstream behaviour).
+         """
+         self.gcp_project = gcp_project
++        self.manifest_cache_dir = (
++            Path(manifest_cache_dir) if manifest_cache_dir is not None else None
++        )
+         self._stores: dict[str, object] = {}  # Cache stores by (protocol, bucket)
+         self._registry = None
+ 
+@@ -350,20 +404,50 @@
+         """
+         parser = VirtualTIFF(ifd=ifd)
+ 
++        cache_dir = self.manifest_cache_dir
++
+         async def process_tile(tile: AEFTileInfo) -> xr.Dataset:
+             protocol, bucket, key = _parse_cloud_path(tile.path)
+             file_url = f"{protocol}://{bucket}/{key}"
+             registry = self._get_registry(protocol, bucket)
+ 
+-            manifest_store = await asyncio.to_thread(
+-                parser, url=file_url, registry=registry
+-            )
++            # Reuse a cached manifest when available; otherwise parse the COG
++            # header and write it back so the next run skips the parse. Both the
++            # load and save are best-effort (never raise) — a cache miss or error
++            # just falls through to a normal parse, so behaviour is unchanged when
++            # no cache_dir is set or the cache is cold/corrupt.
++            manifest_store = None
++            if cache_dir is not None:
++                manifest_store = await asyncio.to_thread(
++                    load_cached_manifest, cache_dir, file_url, ifd, registry
++                )
++            if manifest_store is None:
++                manifest_store = await asyncio.to_thread(
++                    parser, url=file_url, registry=registry
++                )
++                if cache_dir is not None:
++                    await asyncio.to_thread(
++                        save_manifest, cache_dir, file_url, ifd, manifest_store
++                    )
++
++            # Resolve the chunks argument. chunks=None asks open_zarr for numpy-
++            # backed (non-dask) arrays; that is a footgun here because the very
++            # next step, expand_dims(time=...), then force-reads the whole tile
++            # (~100 s for 8192^2 x 64), as do concat and any lazy windowing. To
++            # keep those operations lazy while still honouring the intent of
++            # chunks=None ("don't explode the dask graph"), open at the COG's
++            # native block size — one dask chunk per stored block, so a windowed
++            # read still only fetches the blocks it overlaps. An explicit chunks=
++            # value (int/dict/"auto") is passed straight through unchanged.
++            resolved_chunks = chunks
++            if chunks is None:
++                resolved_chunks = _native_block_chunks(manifest_store)
+             ds: xr.Dataset = await asyncio.to_thread(
+                 xr.open_zarr,
+                 manifest_store,
+                 zarr_format=3,
+                 consolidated=False,
+-                chunks=chunks,
++                chunks=resolved_chunks,
+                 mask_and_scale=False,
+             )
+ 
+@@ -376,7 +460,11 @@
+             # Assign spatial coordinates from the actual TIFF affine
+             ds = ds.assign_coords(x=coords["x"].values, y=coords["y"].values)
+ 
+-            # Expand time as a dimension
++            # Expand time as a dimension. This is free on dask-backed arrays (a
++            # graph-only op) but forces a full materialising read on numpy-backed
++            # ones (~100 s for an 8192^2 x 64 int8 tile). open_tiles_by_zone opens
++            # with dask chunks (see the chunks handling there) precisely so this,
++            # concat, and windowed reads all stay lazy.
+             ds = ds.expand_dims(time=[tile.as_datetime])
+ 
+             ds.attrs["_source_url"] = file_url
+@@ -403,12 +491,23 @@
+             if len(time_datasets) == 1:
+                 spatial_combined = time_datasets[0]
+             else:
++                # fill_value pins the join gap-fill to the AEF nodata sentinel in
++                # the data's own dtype. Without it, an outer join over tiles that
++                # don't fully tile the union rectangle fills gaps with float NaN,
++                # which promotes int8 -> float64: an 8x memory/transfer blow-up of
++                # the whole zone in the dask graph, and it discards the -128
++                # sentinel. Using the sentinel keeps the result int8 and nodata-
++                # correct. (For already-dequantized float input, callers pass
++                # float data and NaN promotion is a no-op; -128 as float is still
++                # a valid distinct fill there.)
++                fill = _nodata_fill_for(time_datasets[0])
+                 spatial_combined = xr.combine_by_coords(
+                     time_datasets,
+                     coords="minimal",
+                     compat="override",
+                     combine_attrs="drop_conflicts",
+                     join="outer",
++                    fill_value=fill,
+                 )
+             time_slices.append(spatial_combined)
+ 
+--- /tmp/claude-210017880/-home-geethen-singh-myprojects-nyvest/a231e9a2-3f9e-4f36-aa97-a0166bfad643/scratchpad/aef-loader/aef_loader/index.py	2026-07-08 11:13:33.907085106 +0200
++++ /home/geethen.singh/myprojects/nyvest/DNN/aef_loader_plus/aef_loader/index.py	2026-07-08 11:40:12.288539488 +0200
+@@ -200,22 +200,54 @@
+ 
+         return start_year, end_year
+ 
++    @staticmethod
++    def _bbox_to_wgs84(bbox: BoundingBox, bbox_crs: str) -> BoundingBox:
++        """Reproject ``bbox`` from ``bbox_crs`` to WGS84 with edge densification.
++
++        Returns the bbox unchanged when ``bbox_crs`` is already WGS84. Otherwise
++        uses ``pyproj.Transformer.transform_bounds(densify_pts=21)`` so the
++        WGS84 envelope covers the projected rectangle's outward-bowed edges (see
++        ``query`` note) rather than just its four corners.
++        """
++        from pyproj import CRS, Transformer
++
++        if CRS.from_user_input(bbox_crs) == CRS.from_epsg(4326):
++            return bbox
++        transformer = Transformer.from_crs(bbox_crs, "EPSG:4326", always_xy=True)
++        minx, miny, maxx, maxy = transformer.transform_bounds(
++            bbox[0], bbox[1], bbox[2], bbox[3], densify_pts=21
++        )
++        return (minx, miny, maxx, maxy)
++
+     async def query(
+         self,
+         bbox: BoundingBox | None = None,
+         years: int | DateRange | None = None,
+         limit: int | None = None,
++        bbox_crs: str = "EPSG:4326",
+     ) -> list[AEFTileInfo]:
+         """
+         Query the index for tiles matching the given criteria.
+ 
+         Args:
+-            bbox: Bounding box filter (minx, miny, maxx, maxy) in WGS84
++            bbox: Bounding box filter (minx, miny, maxx, maxy) in ``bbox_crs``.
+             years: Single year or (start_year, end_year) tuple
+             limit: Maximum number of tiles to return
++            bbox_crs: CRS of ``bbox``. Defaults to WGS84 (the index geometry's
++                CRS). Pass a projected CRS (e.g. ``"EPSG:32633"``) to supply the
++                AOI in projected coordinates; the bbox is reprojected to WGS84
++                with edge densification before intersecting the index (see note).
+ 
+         Returns:
+             List of AEFTileInfo objects matching the query
++
++        Note:
++            When ``bbox_crs`` is projected, the bbox edges are densified
++            (``Transformer.transform_bounds(densify_pts=21)``) before reprojecting
++            to WGS84. Transforming only the four corners of a projected rectangle
++            under-covers the true footprint: at high latitudes the reprojected
++            edges bow outward, so a corner-only envelope can miss boundary tiles.
++            Densifying samples along each edge and takes the outer envelope.
+         """
+         if self._gdf is None:
+             self.load()
+@@ -225,7 +257,7 @@
+ 
+         # Apply spatial filter
+         if bbox:
+-            minx, miny, maxx, maxy = bbox
++            minx, miny, maxx, maxy = self._bbox_to_wgs84(bbox, bbox_crs)
+             bbox_geom = box(minx, miny, maxx, maxy)
+             gdf = gdf[gdf.geometry.intersects(bbox_geom)]
+             logger.info(f"After bbox filter: {len(gdf)} tiles")
+--- /tmp/claude-210017880/-home-geethen-singh-myprojects-nyvest/a231e9a2-3f9e-4f36-aa97-a0166bfad643/scratchpad/aef-loader/aef_loader/utils.py	2026-07-08 11:13:33.908085110 +0200
++++ /home/geethen.singh/myprojects/nyvest/DNN/aef_loader_plus/aef_loader/utils.py	2026-07-08 11:43:08.763142064 +0200
+@@ -22,6 +22,49 @@
+     from odc.geo.geobox import GeoBox
+ 
+ 
++def _build_dequant_lut(
++    divisor: float = AEF_DEQUANT_DIVISOR,
++    nodata_value: int = AEF_NODATA_VALUE,
++) -> np.ndarray:
++    """256-entry int8->float32 dequantization lookup table indexed by ``raw + 128``.
++
++    AEF stores embeddings as int8 in ``[-128, 127]``, so every possible value is
++    one of 256 outcomes. Precomputing them once and gathering (``lut[raw + 128]``)
++    is measurably faster than recomputing ``(v/127.5)**2 * sign(v)`` per pixel and
++    fuses the ``-128 -> NaN`` nodata mapping into the same gather, avoiding a
++    separate boolean mask and its temporaries. At ~4.3e9 elements per 8192^2 x 64
++    tile this dominates the cost of ``dequantize_aef`` on the numpy path.
++    """
++    idx = np.arange(-128, 128, dtype=np.float32)
++    lut = (idx / divisor) ** 2 * np.sign(idx)
++    lut[nodata_value + 128] = np.nan  # -128 -> NaN, honoured by resamplers as nodata
++    return lut
++
++
++# Default LUT for the common (divisor=127.5, nodata=-128) case. A non-default
++# call rebuilds a table on the fly, so correctness never depends on this cache.
++_DEQUANT_LUT = _build_dequant_lut()
++
++
++def _dequantize_lut(
++    raw: np.ndarray,
++    divisor: float = AEF_DEQUANT_DIVISOR,
++    nodata_value: int = AEF_NODATA_VALUE,
++) -> np.ndarray:
++    """Dequantize a raw int8/int16 array via the LUT; ``nodata_value`` -> NaN.
++
++    Returns a fresh float32 array. ``raw`` may be int8 or a wider int type (the
++    warped-read path yields int16 with the -128 sentinel preserved); values are
++    shifted into ``[0, 255]`` to index the table.
++    """
++    lut = (
++        _DEQUANT_LUT
++        if divisor == AEF_DEQUANT_DIVISOR and nodata_value == AEF_NODATA_VALUE
++        else _build_dequant_lut(divisor, nodata_value)
++    )
++    return lut[np.asarray(raw).astype(np.int16) + 128]
++
++
+ def dequantize_aef(
+     data: np.ndarray | xr.DataArray | xr.Dataset,
+     divisor: float = AEF_DEQUANT_DIVISOR,
+@@ -59,15 +102,14 @@
+     if isinstance(data, xr.Dataset):
+         return data.map(lambda x: dequantize_aef(x, divisor, nodata_value))
+ 
+-    # Create nodata mask before conversion
+-    nodata_mask = data == nodata_value
+-
+-    # Apply the correct formula: (v/127.5)² × sign(v)
+-    normalized = data.astype(np.float32) / divisor
+-    dequantized = (normalized**2) * np.sign(data)
+-
+-    # Apply nodata mask (convert -128 to NaN)
+     if isinstance(data, xr.DataArray):
++        # DataArrays are typically dask-backed and lazy; keep the elementwise
++        # form so the graph stays blockwise. (The LUT gather is an eager numpy
++        # op and is applied on the plain-ndarray branch below, which is the hot
++        # path for materialised windowed reads.)
++        nodata_mask = data == nodata_value
++        normalized = data.astype(np.float32) / divisor
++        dequantized = (normalized**2) * np.sign(data)
+         dequantized = xr.where(nodata_mask, np.nan, dequantized)
+         result = xr.DataArray(
+             dequantized,
+@@ -78,10 +120,11 @@
+         result.attrs["units"] = "embedding"
+         result.attrs["dequantized"] = True
+         return set_aef_nodata(result, nodata=np.nan)
+-    else:
+-        dequantized = np.where(nodata_mask, np.nan, dequantized)
+ 
+-    return dequantized
++    # Plain ndarray: gather through the precomputed LUT (see _dequantize_lut).
++    # Bit-identical to the elementwise formula, ~1.3x faster, and it folds the
++    # -128 -> NaN nodata step into the same gather (no extra mask/temporaries).
++    return _dequantize_lut(data, divisor, nodata_value)
+ 
+ 
+ def quantize_aef(
+@@ -232,11 +275,29 @@
+     return split
+ 
+ 
++def _is_quantized(tree: DataTree) -> bool:
++    """True if any zone's data variables are an integer dtype (raw/quantized int8).
++
++    Dequantized embeddings are float; raw AEF COGs opened by
++    ``VirtualTiffReader.open_tiles_by_zone`` are int8. Interpolating resamplers
++    must not run on the integer form (see ``reproject_datatree``).
++    """
++    for zone_name in tree.children:
++        ds = tree[zone_name].ds
++        if ds is None:
++            continue
++        for var in ds.data_vars:
++            if np.issubdtype(ds[var].dtype, np.integer):
++                return True
++    return False
++
++
+ def reproject_datatree(
+     tree: DataTree,
+     target_geobox: GeoBox,
+     resampling: str = "nearest",
+     dst_nodata: int | float | None = None,
++    allow_lossy_resampling: bool = False,
+ ) -> xr.Dataset:
+     """
+     Reproject all zones in a DataTree to a common target GeoBox.
+@@ -289,6 +350,26 @@
+         result = combined.compute()  # triggers actual reprojection
+         ```
+     """
++    # Guard: interpolating resamplers corrupt raw int8 embeddings. They blend the
++    # -128 nodata sentinel into neighbouring valid pixels AND interpolate along
++    # AEF's nonlinear quantization curve (a weighted mean of quantized codes does
++    # not dequantize to the mean of the underlying values). Only "nearest" (which
++    # copies source codes verbatim) is exact on quantized data. To use bilinear/
++    # cubic/etc., dequantize to float first (dequantize_aef, -128 -> NaN) so the
++    # resampler operates on real embedding values with NaN-aware nodata.
++    if (
++        resampling != "nearest"
++        and not allow_lossy_resampling
++        and _is_quantized(tree)
++    ):
++        raise ValueError(
++            f"resampling={resampling!r} would corrupt raw int8 (quantized) AEF "
++            "embeddings: it interpolates across the -128 nodata sentinel and the "
++            "nonlinear quantization curve. Dequantize first (dequantize_aef, "
++            "which maps -128 -> NaN) and reproject the float data, or pass "
++            "allow_lossy_resampling=True to override. 'nearest' is always safe."
++        )
++
+     reproject_kwargs: dict = {"resampling": resampling}
+     if dst_nodata is not None:
+         reproject_kwargs["dst_nodata"] = dst_nodata
+@@ -355,3 +436,61 @@
+     combined.attrs["target_crs"] = str(target_geobox.crs)
+ 
+     return combined
++
++
++def aoi_geobox(
++    bbox: tuple[float, float, float, float],
++    crs: str,
++    resolution: float,
++    bbox_crs: str | None = None,
++    snap: bool = True,
++) -> GeoBox:
++    """Build a target ``GeoBox`` for an AOI, snapped to a global pixel lattice.
++
++    ``GeoBox.from_bbox`` anchors the grid at the AOI's own corner, so two AOIs
++    reprojected independently (e.g. adjacent tiles, or the same area at different
++    times) land on *different* pixel grids and cannot be mosaicked without
++    resampling. Snapping the origin to integer multiples of ``resolution``
++    (anchored at 0, 0) makes every AOI at a given resolution/CRS share one grid,
++    so outputs align exactly and can be merged losslessly. This is the odc-geo
++    analogue of the lattice snap ``prep_aef_tiles.py`` applies to warped tiles.
++
++    Args:
++        bbox: AOI bounds ``(minx, miny, maxx, maxy)``.
++        crs: Target CRS for the GeoBox (e.g. ``"EPSG:32633"``).
++        resolution: Pixel size in target CRS units (metres for UTM).
++        bbox_crs: CRS of ``bbox`` if different from ``crs``; the bbox is
++            reprojected (densified) to ``crs`` first. Defaults to ``crs``.
++        snap: When True (default), snap the origin to the ``resolution`` lattice
++            and grow the extent outward to fully cover ``bbox``. When False,
++            behaves like ``GeoBox.from_bbox`` (AOI-anchored grid).
++
++    Returns:
++        A north-up ``GeoBox`` in ``crs`` at ``resolution`` covering ``bbox``.
++    """
++    from odc.geo.geobox import GeoBox
++
++    minx, miny, maxx, maxy = bbox
++    if bbox_crs is not None and str(bbox_crs) != str(crs):
++        from pyproj import Transformer
++
++        transformer = Transformer.from_crs(bbox_crs, crs, always_xy=True)
++        minx, miny, maxx, maxy = transformer.transform_bounds(
++            minx, miny, maxx, maxy, densify_pts=21
++        )
++
++    if not snap:
++        return GeoBox.from_bbox(
++            (minx, miny, maxx, maxy), crs=crs, resolution=resolution
++        )
++
++    # Snap outward to the global lattice: floor the min edges, ceil the max edges.
++    snapped_minx = math.floor(minx / resolution) * resolution
++    snapped_miny = math.floor(miny / resolution) * resolution
++    snapped_maxx = math.ceil(maxx / resolution) * resolution
++    snapped_maxy = math.ceil(maxy / resolution) * resolution
++    return GeoBox.from_bbox(
++        (snapped_minx, snapped_miny, snapped_maxx, snapped_maxy),
++        crs=crs,
++        resolution=resolution,
++    )
+--- /tmp/claude-210017880/-home-geethen-singh-myprojects-nyvest/a231e9a2-3f9e-4f36-aa97-a0166bfad643/scratchpad/aef-loader/aef_loader/__init__.py	2026-07-08 11:13:33.907085106 +0200
++++ /home/geethen.singh/myprojects/nyvest/DNN/aef_loader_plus/aef_loader/__init__.py	2026-07-08 11:43:27.016204388 +0200
+@@ -15,6 +15,7 @@
+ from aef_loader.reader import VirtualTiffReader
+ from aef_loader.types import AEFTileInfo
+ from aef_loader.utils import (
++    aoi_geobox,
+     dequantize_aef,
+     int8_to_float32,
+     mask_nodata,
+@@ -32,6 +33,7 @@
+     "AEFTileInfo",
+     "DataSource",
+     # Utility functions
++    "aoi_geobox",
+     "dequantize_aef",
+     "int8_to_float32",
+     "mask_nodata",
+=== NEW FILE: aef_loader/cache.py ===
+--- /dev/null	2026-07-06 13:27:30.495000056 +0200
++++ /home/geethen.singh/myprojects/nyvest/DNN/aef_loader_plus/aef_loader/cache.py	2026-07-08 11:48:27.608242267 +0200
+@@ -0,0 +1,182 @@
++"""On-disk cache for virtual-tiff COG manifests.
++
++Parsing a COG header into a VirtualiZarr ``ManifestStore`` (``VirtualTIFF(...)``)
++costs a network round-trip plus decode — ~1.6 s per AEF tile, measured. Nothing
++about that manifest changes between sessions (it is derived purely from the COG's
++immutable header), yet the stock reader re-parses every tile on every process.
++For a wall-to-wall AOI (tens of tiles) that is the dominant cold-start cost.
++
++This module serialises the manifest to a small JSON file keyed by the tile's
++cloud path, and rebuilds the ``ManifestStore`` from JSON on subsequent opens —
++turning a ~1.6 s header fetch+parse into a sub-millisecond local read. The cached
++JSON holds only header-derived metadata (array shape, chunk grid, codecs, and the
++per-chunk byte-range table pointing back into the remote object); no pixel data is
++cached, so a cache entry is a few hundred KB regardless of tile size.
++
++Correctness: the live ``ObjectStoreRegistry`` is re-attached at load time (it is a
++process-local handle to the cloud store, not serialisable state), so a rebuilt
++store reads the same remote bytes as a freshly parsed one. Cache keys include the
++IFD index and a format version, so overviews and format changes never collide.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import json
++import logging
++from pathlib import Path
++from typing import TYPE_CHECKING
++
++import numpy as np
++from virtualizarr.manifests import ChunkManifest, ManifestArray, ManifestGroup
++from virtualizarr.manifests.store import ManifestStore
++from zarr.core.metadata.v3 import ArrayV3Metadata
++
++if TYPE_CHECKING:
++    from virtualizarr.registry import ObjectStoreRegistry
++
++logger = logging.getLogger(__name__)
++
++# Bump when the on-disk JSON layout or the manifest semantics change, so stale
++# entries from an older aef-loader are ignored rather than mis-read.
++CACHE_FORMAT_VERSION = 1
++
++
++def _cache_key(url: str, ifd: int) -> str:
++    """Stable filename stem for a (tile url, ifd) pair.
++
++    A hash keeps the filename fixed-length and filesystem-safe regardless of the
++    URL, and folds in the format version and ifd so unrelated variants never map
++    to the same file.
++    """
++    raw = f"v{CACHE_FORMAT_VERSION}|ifd{ifd}|{url}"
++    return hashlib.sha256(raw.encode()).hexdigest()[:32]
++
++
++def cache_path_for(cache_dir: Path, url: str, ifd: int) -> Path:
++    """Absolute path of the cache file for a (url, ifd) under ``cache_dir``."""
++    return Path(cache_dir) / f"manifest_{_cache_key(url, ifd)}.json"
++
++
++def _manifest_to_jsonable(store: ManifestStore) -> dict:
++    """Extract the JSON-serialisable state of a single-group ``ManifestStore``.
++
++    Captures, per array: the Zarr V3 metadata dict, and the chunk manifest in a
++    *columnar* form — flat ``paths``/``offsets``/``lengths`` lists plus the chunk
++    grid ``shape``. Columnar beats the nested ``{key: {...}}`` dict on both counts
++    that matter here: the JSON is markedly smaller, and reconstruction uses
++    ``ChunkManifest.from_arrays`` (vectorised) instead of the per-entry
++    ``ChunkManifest(entries=...)`` path, which is ~50 ms for a 4096-chunk tile.
++    Chunk order is row-major over the grid so keys are implicit and need not be
++    stored. Also captures group-level attributes. Deliberately does NOT capture
++    the registry (see module docstring).
++    """
++    group = store._group
++    arrays_out: dict[str, dict] = {}
++    for name, marr in group.arrays.items():
++        manifest = marr.manifest
++        # These three parallel ndarrays are the manifest's native columnar layout,
++        # shaped like the chunk grid. Row-major flatten keeps them aligned.
++        paths = np.asarray(manifest._paths).reshape(-1)
++        offsets = np.asarray(manifest._offsets).reshape(-1)
++        lengths = np.asarray(manifest._lengths).reshape(-1)
++        arrays_out[name] = {
++            "metadata": marr.metadata.to_dict(),
++            "chunk_grid_shape": list(manifest.shape_chunk_grid),
++            "paths": paths.tolist(),
++            "offsets": offsets.tolist(),
++            "lengths": lengths.tolist(),
++        }
++    return {
++        "format_version": CACHE_FORMAT_VERSION,
++        "group_attributes": dict(group.metadata.attributes),
++        "arrays": arrays_out,
++    }
++
++
++def _jsonable_to_manifest(
++    data: dict, registry: ObjectStoreRegistry
++) -> ManifestStore:
++    """Rebuild a ``ManifestStore`` from :func:`_manifest_to_jsonable` output.
++
++    ``registry`` is the live, process-local object store to attach so the rebuilt
++    store can fetch remote chunk bytes.
++    """
++    arrays: dict[str, ManifestArray] = {}
++    for name, arr in data["arrays"].items():
++        metadata = ArrayV3Metadata.from_dict(arr["metadata"])
++        shape = tuple(arr["chunk_grid_shape"])
++        # Rebuild the columnar arrays and hand them to from_arrays (vectorised).
++        # validate_paths=False skips a per-path URL re-parse: paths came straight
++        # from a manifest we serialised ourselves, so they are already well-formed.
++        paths = np.array(arr["paths"], dtype=np.dtypes.StringDType()).reshape(shape)
++        offsets = np.array(arr["offsets"], dtype=np.uint64).reshape(shape)
++        lengths = np.array(arr["lengths"], dtype=np.uint64).reshape(shape)
++        manifest = ChunkManifest.from_arrays(
++            paths=paths, offsets=offsets, lengths=lengths, validate_paths=False
++        )
++        arrays[name] = ManifestArray(metadata=metadata, chunkmanifest=manifest)
++    group = ManifestGroup(
++        arrays=arrays, attributes=data.get("group_attributes", {})
++    )
++    return ManifestStore(group, registry=registry)
++
++
++def load_cached_manifest(
++    cache_dir: Path, url: str, ifd: int, registry: ObjectStoreRegistry
++) -> ManifestStore | None:
++    """Return a rebuilt ``ManifestStore`` from cache, or None on miss/stale/error.
++
++    Never raises: any problem reading or parsing the cache is treated as a miss so
++    the caller transparently falls back to a fresh parse.
++    """
++    path = cache_path_for(cache_dir, url, ifd)
++    if not path.exists():
++        return None
++    try:
++        data = json.loads(path.read_text())
++        if data.get("format_version") != CACHE_FORMAT_VERSION:
++            logger.debug("manifest cache %s: stale format, ignoring", path.name)
++            return None
++        store = _jsonable_to_manifest(data, registry)
++        logger.debug("manifest cache hit: %s", url)
++        return store
++    except Exception as exc:  # noqa: BLE001 — cache must never be fatal
++        logger.warning("manifest cache %s unreadable (%s); reparsing", path.name, exc)
++        return None
++
++
++def save_manifest(
++    cache_dir: Path, url: str, ifd: int, store: ManifestStore
++) -> None:
++    """Serialise ``store`` to the cache for (url, ifd). Best-effort; never raises.
++
++    Writes atomically (temp file + rename) so a crash mid-write can't leave a
++    half-written JSON that a later run would treat as a corrupt hit.
++    """
++    path = cache_path_for(cache_dir, url, ifd)
++    try:
++        path.parent.mkdir(parents=True, exist_ok=True)
++        payload = _manifest_to_jsonable(store)
++        tmp = path.with_suffix(".json.tmp")
++        tmp.write_text(json.dumps(payload, default=_json_default))
++        tmp.replace(path)
++        logger.debug("manifest cached: %s -> %s", url, path.name)
++    except Exception as exc:  # noqa: BLE001 — caching is an optimisation, not a contract
++        logger.warning("could not cache manifest for %s (%s)", url, exc)
++
++
++def _json_default(obj):
++    """Coerce the few non-JSON-native types that appear in manifest metadata.
++
++    ChunkManifest.dict() offsets/lengths come back as numpy integers; array
++    metadata may carry numpy scalars or tuples. Tuples already serialise as
++    lists; this handles numpy scalars/arrays.
++    """
++    if isinstance(obj, np.integer):
++        return int(obj)
++    if isinstance(obj, np.floating):
++        return float(obj)
++    if isinstance(obj, np.ndarray):
++        return obj.tolist()
++    raise TypeError(f"not JSON-serialisable: {type(obj)!r}")

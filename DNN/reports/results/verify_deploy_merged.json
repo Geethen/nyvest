@@ -1,0 +1,43 @@
+{
+  "kind": "verify_deploy",
+  "passed": 12,
+  "of": 12,
+  "timestamp": "2026-08-10 12:17:49",
+  "window_finite_frac": 0.7451,
+  "arch": "moe_shared",
+  "fused_max_abs_delta": 2.384185791015625e-07,
+  "fused_argmax_agreement": 1.0,
+  "fused_rows": 400000,
+  "calib_arch": "moe_shared",
+  "calib_gpu_max_abs_delta": 0.0,
+  "int8_vs_f32_identical_px": 2359296,
+  "int8_vs_f32_total_px": 2359296,
+  "moe_vs_mlp_changed_frac": 0.1611,
+  "valid_px": 1757932,
+  "class_hist_mlp": {
+    "2": 10319,
+    "3": 49761,
+    "4": 225329,
+    "5": 222187,
+    "6": 503641,
+    "7": 47323,
+    "8": 379169,
+    "10": 127171,
+    "11": 193032
+  },
+  "class_hist_moe": {
+    "2": 139361,
+    "3": 48794,
+    "4": 213525,
+    "5": 229636,
+    "6": 572954,
+    "7": 45018,
+    "8": 376822,
+    "10": 131822
+  },
+  "t_mlp_s": 5.5,
+  "t_moe_f32_s": 5.8,
+  "t_moe_i8_s": 6.09,
+  "f32_mb": 100.5,
+  "i8_mb": 80.0
+}

@@ -1,0 +1,438 @@
+<title>Grunnkart v2 — a map fix, not a model fix</title>
+<style>
+  :root {
+    --ground: #E9EDEB;
+    --surface: #FBFCFB;
+    --surface-2: #F1F4F2;
+    --ink: #141C19;
+    --ink-2: #3B4844;
+    --muted: #66756F;
+    --line: #CBD4D0;
+    --line-2: #DFE5E2;
+    --built: #A8342B;
+    --built-soft: #EADAD6;
+    --land: #1F6F5C;
+    --land-soft: #DCE8E4;
+    --flag: #8A6A1F;
+    --shadow: 0 1px 2px rgba(20,28,25,.06), 0 8px 24px -16px rgba(20,28,25,.28);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101614; --surface: #161E1B; --surface-2: #1B2522;
+      --ink: #E6ECE9; --ink-2: #BAC6C1; --muted: #889993;
+      --line: #2A3733; --line-2: #222E2A;
+      --built: #E07A5F; --built-soft: #34211C;
+      --land: #5FC0A4; --land-soft: #16302A;
+      --flag: #D9B45C;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101614; --surface: #161E1B; --surface-2: #1B2522;
+    --ink: #E6ECE9; --ink-2: #BAC6C1; --muted: #889993;
+    --line: #2A3733; --line-2: #222E2A;
+    --built: #E07A5F; --built-soft: #34211C;
+    --land: #5FC0A4; --land-soft: #16302A;
+    --flag: #D9B45C;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+  :root[data-theme="light"] {
+    --ground: #E9EDEB; --surface: #FBFCFB; --surface-2: #F1F4F2;
+    --ink: #141C19; --ink-2: #3B4844; --muted: #66756F;
+    --line: #CBD4D0; --line-2: #DFE5E2;
+    --built: #A8342B; --built-soft: #EADAD6;
+    --land: #1F6F5C; --land-soft: #DCE8E4;
+    --flag: #8A6A1F;
+    --shadow: 0 1px 2px rgba(20,28,25,.06), 0 8px 24px -16px rgba(20,28,25,.28);
+  }
+
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+  section { margin-top: 4rem; }
+  p { max-width: 66ch; color: var(--ink-2); }
+  a { color: var(--built); }
+  strong { color: var(--ink); font-weight: 650; }
+
+  /* ---- masthead ---- */
+  .mast { padding: 4rem 0 0; }
+  .eyebrow {
+    font-family: var(--mono); font-size: .75rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center;
+  }
+  h1 {
+    font-family: var(--mono); font-weight: 600; letter-spacing: -.03em;
+    font-size: clamp(2rem, 5.2vw, 3.1rem); line-height: 1.08;
+    margin: 1.25rem 0 0; text-wrap: balance; max-width: 20ch;
+  }
+  .standfirst {
+    font-size: 1.15rem; line-height: 1.55; margin-top: 1.25rem;
+    max-width: 60ch; color: var(--ink-2);
+  }
+  .verdict {
+    margin-top: 2rem; display: flex; gap: 1rem; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--built);
+    border-radius: 2px; padding: 1.1rem 1.25rem; box-shadow: var(--shadow);
+    max-width: 60ch;
+  }
+  .verdict .k {
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--built); padding-top: .28rem;
+    white-space: nowrap;
+  }
+  .verdict p { margin: 0; color: var(--ink); }
+
+  h2 {
+    font-family: var(--mono); font-weight: 600; letter-spacing: -.02em;
+    font-size: 1.4rem; margin: 0 0 .35rem; text-wrap: balance;
+    display: flex; align-items: baseline; gap: .7rem;
+  }
+  h2 .n {
+    font-size: .72rem; letter-spacing: .1em; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: .1rem .4rem; font-weight: 500;
+  }
+  h3 {
+    font-family: var(--mono); font-size: .95rem; font-weight: 600;
+    margin: 2rem 0 .6rem; letter-spacing: -.01em;
+  }
+  .sub { color: var(--muted); font-size: .95rem; margin: 0 0 1.5rem; max-width: 62ch; }
+
+  /* ---- code chips ---- */
+  .chip {
+    font-family: var(--mono); font-size: .8em; padding: .1rem .35rem;
+    border-radius: 2px; background: var(--surface-2);
+    border: 1px solid var(--line-2); white-space: nowrap;
+  }
+  .chip.b { color: var(--built); background: var(--built-soft); border-color: transparent; }
+
+  /* ---- tables ---- */
+  .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+  th, td { padding: .6rem .85rem; text-align: left; border-bottom: 1px solid var(--line-2); }
+  thead th {
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); font-weight: 500;
+    background: var(--surface-2); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  tr.hi td { background: var(--built-soft); }
+  tr.hi td:first-child { box-shadow: inset 2px 0 0 var(--built); }
+  .dim { color: var(--muted); }
+  .neg { color: var(--built); }
+  .pos { color: var(--land); }
+
+  /* ---- stat row ---- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+  .stat { background: var(--surface); padding: 1rem 1.1rem; }
+  .stat .v { font-family: var(--mono); font-size: 1.6rem; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: .78rem; color: var(--muted); margin-top: .25rem; line-height: 1.4; }
+  .stat.acc .v { color: var(--built); }
+
+  /* ---- pixel grids ---- */
+  .grids { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1.25rem; margin-top: 1.5rem; }
+  .gcard { background: var(--surface); border: 1px solid var(--line); border-radius: 2px; padding: 1rem; box-shadow: var(--shadow); }
+  .px { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; width: 100%; aspect-ratio: 1; }
+  .px i { background: var(--surface-2); border-radius: 1px; }
+  .px i.on { background: var(--built); }
+  .gname { font-family: var(--mono); font-size: .78rem; font-weight: 600; margin-top: .8rem; }
+  .gmeta { font-size: .72rem; color: var(--muted); font-family: var(--mono); }
+  .bars { margin-top: .75rem; display: flex; flex-direction: column; gap: .45rem; }
+  .bar { display: grid; grid-template-columns: 3.4rem 1fr 2.6rem; gap: .5rem; align-items: center; font-size: .68rem; font-family: var(--mono); color: var(--muted); }
+  .track { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 3px; }
+  .fill.a { background: var(--built); }
+  .fill.b { background: var(--muted); }
+  .bar .pc { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: .75rem; font-family: var(--mono); color: var(--muted); margin-top: 1.25rem; }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+  .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  /* ---- callout ---- */
+  .note {
+    border: 1px solid var(--line); border-left: 3px solid var(--flag);
+    background: var(--surface); border-radius: 2px; padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .note h3 { margin: 0 0 .4rem; color: var(--flag); }
+  .note p { margin: 0; max-width: 68ch; }
+  .note p + p { margin-top: .6rem; }
+
+  ul { max-width: 66ch; color: var(--ink-2); padding-left: 1.1rem; }
+  li { margin: .35rem 0; }
+  li::marker { color: var(--muted); }
+
+  footer {
+    margin-top: 5rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: .75rem; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;
+  }
+  :focus-visible { outline: 2px solid var(--built); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div class="eyebrow">
+      <span>nyvest · land cover</span>
+      <span>grunnkart v2 · FKB Bygning 2018</span>
+      <span>3-fold spatial CV</span>
+    </div>
+    <h1>A map fix, not a model fix</h1>
+    <p class="standfirst">
+      Swapping FKB Grønnstruktur's <span class="chip">FKB_bygg</span> for FKB Bygning 2018
+      corrects 11.9 km² of building footprint. It moves the deployed classifier
+      by <strong>−0.0002 macro-F1</strong> — and trying to learn from the correction
+      makes the built class <em>worse</em>. Here is why that is the right outcome.
+    </p>
+    <div class="verdict">
+      <span class="k">Verdict</span>
+      <p>Adopt v2 for the map. Keep the model as it is. Do <strong>not</strong> augment training with the changed pixels.</p>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="n">01</span> What actually changed</h2>
+    <p class="sub">Pixelwise diff of the two 10 m rasters, 1.81 billion pixels. Every single changed pixel moves <em>to</em> class 10.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="v">118,968</div><div class="l">pixels changed</div></div>
+      <div class="stat"><div class="v">0.0066%</div><div class="l">of the full grid</div></div>
+      <div class="stat acc"><div class="v">+1.36%</div><div class="l">class 10 built</div></div>
+      <div class="stat"><div class="v">−1.46%</div><div class="l">class 13 other</div></div>
+      <div class="stat"><div class="v">11.90</div><div class="l">km² reattributed</div></div>
+    </div>
+
+    <h3>Transitions</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>from</th><th>to</th><th class="n">pixels</th><th class="n">km²</th><th class="n">share of edit</th></tr></thead>
+        <tbody>
+          <tr class="hi"><td>13 &nbsp;other / settlements</td><td><span class="chip b">10 built</span></td><td class="n">102,677</td><td class="n">10.27</td><td class="n">86.3%</td></tr>
+          <tr><td>4 &nbsp;forest</td><td><span class="chip b">10 built</span></td><td class="n">4,937</td><td class="n">0.49</td><td class="n">4.1%</td></tr>
+          <tr><td>6 &nbsp;scrub</td><td><span class="chip b">10 built</span></td><td class="n">3,792</td><td class="n">0.38</td><td class="n">3.2%</td></tr>
+          <tr><td>3 &nbsp;crop</td><td><span class="chip b">10 built</span></td><td class="n">2,492</td><td class="n">0.25</td><td class="n">2.1%</td></tr>
+          <tr><td>0 &nbsp;nodata</td><td><span class="chip b">10 built</span></td><td class="n">1,904</td><td class="n">0.19</td><td class="n">1.6%</td></tr>
+          <tr><td>5 &nbsp;grassland</td><td><span class="chip b">10 built</span></td><td class="n">1,778</td><td class="n">0.18</td><td class="n">1.5%</td></tr>
+          <tr><td class="dim">6 further classes</td><td><span class="chip b">10 built</span></td><td class="n dim">1,388</td><td class="n dim">0.14</td><td class="n dim">1.2%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span> The training set cannot see it</h2>
+    <p>
+      86% of the edit is class 13, and FSCS sampling excludes class 13 entirely
+      (<span class="chip">CLASSES = 1..12</span>). The new label information sits in a
+      region of label space the training set never sampled. Sampling both rasters at
+      the training points confirms it — and confirms the method, since the local v1
+      raster reproduces the parquet's GEE-derived labels exactly:
+    </p>
+    <div class="stats" style="margin-top:1.5rem">
+      <div class="stat"><div class="v">100.00%</div><div class="l">local v1 agrees with the training labels <span class="dim">(method check)</span></div></div>
+      <div class="stat acc"><div class="v">3</div><div class="l">of 74,639 training points change label</div></div>
+      <div class="stat"><div class="v">0.004%</div><div class="l">27 of 663,740 point-year rows</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span> Both training experiments</h2>
+    <p class="sub">Reference 3-fold spatial CV, three paired seeds, test folds untouched. Deltas read per-seed — means hide pairing.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>arm</th><th class="n">seed 0</th><th class="n">seed 1</th><th class="n">seed 2</th><th class="n">mean</th><th class="n">paired Δ</th></tr></thead>
+        <tbody>
+          <tr><td>v1 labels <span class="dim">(reference)</span></td><td class="n">0.7352</td><td class="n">0.7339</td><td class="n">0.7328</td><td class="n">0.7339</td><td class="n dim">—</td></tr>
+          <tr><td>v2 labels</td><td class="n">0.7347</td><td class="n">0.7330</td><td class="n">0.7336</td><td class="n">0.7338</td><td class="n">−0.0002</td></tr>
+          <tr class="hi"><td>v1 + 5k newly-built rows</td><td class="n">0.7321</td><td class="n">0.7327</td><td class="n">0.7317</td><td class="n">0.7322</td><td class="n neg">−0.0017</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:1.25rem">
+      Swapping the labels is a <strong>clean null</strong> — −0.0002 against an established
+      noise floor of sd 0.0013, exactly as a 3-point churn guarantees. Adding the newly-built
+      pixels as extra class-10 training rows is negative on <strong>all three seeds</strong>,
+      and the damage lands precisely on the class it was meant to help:
+    </p>
+    <div class="tw" style="margin-top:1rem">
+      <table>
+        <thead><tr><th>per-class F1</th><th class="n">v1</th><th class="n">v2</th><th class="n">v1 + aug</th><th class="n">aug − v1</th></tr></thead>
+        <tbody>
+          <tr class="hi"><td><span class="chip b">10 built</span> the target class</td><td class="n">0.8484</td><td class="n">0.8479</td><td class="n">0.8389</td><td class="n neg">−0.0095</td></tr>
+          <tr><td>12 snow/ice <span class="dim">(146 pts, volatile)</span></td><td class="n">0.7300</td><td class="n">0.7289</td><td class="n">0.7213</td><td class="n neg">−0.0088</td></tr>
+          <tr><td class="dim">every other class</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">≤ 0.002</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span> Auditing the model against the corrections</h2>
+    <p class="sub">
+      Retraining cannot move, so ask the inverse question: on the pixels v2 newly calls
+      built, what did the deployed model already predict? 76,291 pixels, real lidar,
+      100% AlphaEarth coverage.
+    </p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>stratum</th><th class="n">n</th><th class="n">predicted built</th><th class="n">mean p(built)</th></tr></thead>
+        <tbody>
+          <tr><td>changed <span class="chip">13 → 10</span></td><td class="n">20,000</td><td class="n">39.1%</td><td class="n">0.304</td></tr>
+          <tr><td>changed <span class="chip">1..12 → 10</span></td><td class="n">16,291</td><td class="n">18.7%</td><td class="n">0.154</td></tr>
+          <tr class="hi"><td>control · unchanged 13</td><td class="n">20,000</td><td class="n">43.8%</td><td class="n">0.340</td></tr>
+          <tr><td>control · unchanged 10</td><td class="n">20,000</td><td class="n">82.8%</td><td class="n">0.692</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:1.25rem">
+      The control decides it. <strong>Unchanged class 13 scores <em>higher</em> built (43.8%)
+      than the pixels v2 corrected (39.1%).</strong> The correction did not target pixels the
+      model finds unusually built-like — class 13 is "settlements &amp; artificial areas", and
+      the model already reads roughly 44% of it as built throughout.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span> The mechanism: one or two pixels of house</h2>
+    <p class="sub">
+      Split both strata by how much built sits in the surrounding 5×5 neighbourhood.
+      A scattered rural building is one or two 10 m pixels, spectrally dominated by the
+      grass or forest around it.
+    </p>
+
+    <div class="grids">
+      <div class="gcard">
+        <div class="px" role="img" aria-label="5 by 5 grid with 2 of 25 cells built">
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i class="on"></i><i></i><i></i>
+          <i></i><i></i><i class="on"></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="gname">isolated</div>
+        <div class="gmeta">&lt; 3 of 25</div>
+        <div class="bars">
+          <div class="bar"><span>v2 new</span><span class="track"><span class="fill a" style="width:22.1%"></span></span><span class="pc">22.1%</span></div>
+          <div class="bar"><span>control</span><span class="track"><span class="fill b" style="width:40.2%"></span></span><span class="pc">40.2%</span></div>
+        </div>
+      </div>
+
+      <div class="gcard">
+        <div class="px" role="img" aria-label="5 by 5 grid with 5 of 25 cells built">
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i class="on"></i><i class="on"></i><i></i><i></i>
+          <i></i><i class="on"></i><i class="on"></i><i></i><i></i>
+          <i></i><i></i><i class="on"></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="gname">sparse</div>
+        <div class="gmeta">3–6 of 25</div>
+        <div class="bars">
+          <div class="bar"><span>v2 new</span><span class="track"><span class="fill a" style="width:59.6%"></span></span><span class="pc">59.6%</span></div>
+          <div class="bar"><span>control</span><span class="track"><span class="fill b" style="width:59.9%"></span></span><span class="pc">59.9%</span></div>
+        </div>
+      </div>
+
+      <div class="gcard">
+        <div class="px" role="img" aria-label="5 by 5 grid with 9 of 25 cells built">
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="gname">clustered</div>
+        <div class="gmeta">7–12 of 25</div>
+        <div class="bars">
+          <div class="bar"><span>v2 new</span><span class="track"><span class="fill a" style="width:85.4%"></span></span><span class="pc">85.4%</span></div>
+          <div class="bar"><span>control</span><span class="track"><span class="fill b" style="width:86.3%"></span></span><span class="pc">86.3%</span></div>
+        </div>
+      </div>
+
+      <div class="gcard">
+        <div class="px" role="img" aria-label="5 by 5 grid with 16 of 25 cells built">
+          <i></i><i></i><i></i><i></i><i></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+          <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+        </div>
+        <div class="gname">dense</div>
+        <div class="gmeta">&gt; 12 of 25</div>
+        <div class="bars">
+          <div class="bar"><span>v2 new</span><span class="track"><span class="fill a" style="width:98.3%"></span></span><span class="pc">98.3%</span></div>
+          <div class="bar"><span>control</span><span class="track"><span class="fill b" style="width:96.0%"></span></span><span class="pc">96.0%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="sw" style="background:var(--built)"></span> v2 newly-built pixels <span class="chip">13 → 10</span></span>
+      <span><span class="sw" style="background:var(--muted)"></span> control · established built</span>
+      <span>bars = share the model predicts built</span>
+    </div>
+
+    <p style="margin-top:1.75rem">
+      Match on density and the two series collapse onto each other — 59.6 vs 59.9,
+      85.4 vs 86.3, 98.3 vs 96.0. <strong>The newly-labelled built pixels are recognised at
+      the same rate as established built.</strong> What differs is only the mix:
+    </p>
+
+    <div class="stats" style="margin-top:1.25rem">
+      <div class="stat acc"><div class="v">67.4%</div><div class="l">of v2's new built pixels are <em>isolated</em></div></div>
+      <div class="stat"><div class="v">7.9%</div><div class="l">of established built pixels are isolated</div></div>
+    </div>
+
+    <p style="margin-top:1.5rem">
+      That is a resolution limit, not a model error — which is exactly why training on
+      them hurts. Labelling grass-dominated mixed pixels "built" teaches the net to call
+      grass built, and it pays for that on the 10 built pixels it used to get right.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span> What would actually move it</h2>
+    <ul>
+      <li><strong>Adopt v2 for the map.</strong> 10.3 km² of correctly attributed rural building is a real cartographic improvement, independent of whether a 10 m classifier can learn from it.</li>
+      <li><strong>Leave the training set alone.</strong> Both the relabel and the augmentation are non-wins; the augmentation is an active regression on built.</li>
+      <li><strong>Isolated rural buildings need a different input, not more labels</strong> — FKB footprints as an explicit feature, or sub-10 m imagery. No amount of class-10 rows fixes a pixel that is 85% grass.</li>
+      <li><strong>Class 13 remains an untouched blind spot.</strong> <span style="white-space:nowrap">691.6 km²</span> of "other" is excluded from both training and evaluation — 58× the area this whole edit touches — and the model already reads 44% of it as built. That is unscored map surface, and a larger question than this edit.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="note">
+      <h3>Banked gotcha — embedding scale</h3>
+      <p>
+        <span class="chip">aef_2024.vrt</span> is float32 and <strong>already unit-normalised</strong>
+        (measured L2/px = 1.0001, identical to the training parquet). The
+        <span class="chip">--scale 1000</span> convention applies to the int-scaled
+        source.coop / GEE-export tiles, <em>not</em> here — applying it drives every feature
+        to ~0 and silently yields confident nonsense rather than an error.
+      </p>
+      <p>
+        <span class="chip">extract_v2_changes.check_embedding_scale()</span> now raises if the
+        median L2 strays from 1.0. Call it whenever a new embedding source is wired in.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <span>relabel_v2.py</span>
+    <span>extract_v2_changes.py</span>
+    <span>audit_v2.py</span>
+    <span>exp_v2_labels.py</span>
+    <span>reports/results/v2_audit.json · v2_experiments.json</span>
+  </footer>
+
+</div>

@@ -1,0 +1,44 @@
+{
+  "kind": "io_thread_sweep",
+  "size": 1536,
+  "block": 512,
+  "cores": 8,
+  "rows": [
+    {
+      "encoding": "f32_deflate_512",
+      "gdal_num_threads": "1",
+      "px_per_s": [
+        2795858,
+        7343564,
+        10676598
+      ]
+    },
+    {
+      "encoding": "f32_deflate_512",
+      "gdal_num_threads": "ALL_CPUS",
+      "px_per_s": [
+        10131364,
+        12332004,
+        14304022
+      ]
+    },
+    {
+      "encoding": "i8_zstd_512",
+      "gdal_num_threads": "1",
+      "px_per_s": [
+        11235257,
+        27519571,
+        45012836
+      ]
+    },
+    {
+      "encoding": "i8_zstd_512",
+      "gdal_num_threads": "ALL_CPUS",
+      "px_per_s": [
+        43751062,
+        55717103,
+        53560397
+      ]
+    }
+  ]
+}

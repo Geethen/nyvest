@@ -25,4 +25,5 @@ dependencies = [
     "psutil",
     "earthengine-api",
     "geemap",
+    "ppi-python",
 ]

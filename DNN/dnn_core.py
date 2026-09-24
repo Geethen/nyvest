@@ -99,10 +99,21 @@ class Config:
     bf16: bool = field(default_factory=lambda: os.environ.get("DNN_BF16", "0") == "1")
     fused: bool = field(default_factory=lambda: os.environ.get("DNN_FUSED", "1") == "1")
     streams: bool = field(default_factory=lambda: os.environ.get("DNN_STREAMS", "0") == "1")
+    # Architecture. "mlp" is the deployed 256,128 net; "moe_shared" is the
+    # DeepSeekMoE-style shared-expert MoE from autoresearch/moe_layers.py, whose
+    # shared expert IS the mlp — so a moe_shared checkpoint degrades to the mlp
+    # exactly, with one flag (`Ensemble.local_off`).
+    arch: str = field(default_factory=lambda: os.environ.get("ARCH", "mlp"))
+    n_experts: int = field(default_factory=lambda: _envi("N_EXPERTS", 8))
+    top_k: int = field(default_factory=lambda: _envi("TOP_K", 2))
+    expert_hidden: tuple = field(default_factory=lambda: tuple(
+        int(x) for x in os.environ.get("EXPERT_HIDDEN", "64,32").split(",")))
+    gate_src: str = field(default_factory=lambda: os.environ.get("GATE_SRC", "content"))
 
     def to_dict(self):
         d = asdict(self)
         d["hidden"] = list(self.hidden)
+        d["expert_hidden"] = list(self.expert_hidden)
         return d
 
 
@@ -119,7 +130,10 @@ def load_cached(extra_features: str = "lidar", refresh: bool = False):
     _CACHE_DIR.mkdir(exist_ok=True)
     mtime = int(du.STABLE_PARQUET.stat().st_mtime)
     lid_mtime = int(du.LIDAR_PARQUET.stat().st_mtime) if extra_features == "lidar" else 0
-    key = f"frame_{extra_features}_{mtime}_{lid_mtime}.npz"
+    # The merge signature MUST be in the key: $MERGE_EXTRA changes y/y_enc/classes
+    # without touching the parquet, so a key on mtime alone would serve labels
+    # from a different label space and silently train the wrong ontology.
+    key = f"frame_{extra_features}_{du.merge_sig()}_{mtime}_{lid_mtime}.npz"
     path = _CACHE_DIR / key
     if path.exists() and not refresh:
         z = np.load(path, allow_pickle=True)
@@ -164,6 +178,39 @@ class MLP(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+
+def _moe_mod(name):
+    """Load autoresearch/<name>.py by path.
+
+    By path rather than `sys.path.insert(autoresearch)` because that directory
+    holds `layers.py` / `optimizers.py`, names generic enough to shadow real
+    packages for every other importer in the process.
+    """
+    import importlib.util
+    key = f"_dnn_{name}"
+    if key in sys.modules:
+        return sys.modules[key]
+    src = Path(__file__).resolve().parent / "autoresearch" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(key, src)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod          # before exec: moe_fast imports moe_layers
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def build_model(in_dim, n_classes, cfg: Config):
+    """The one place an architecture is chosen, so training, `Ensemble.load` and
+    the raster path cannot disagree about what a checkpoint contains."""
+    if cfg.arch == "mlp":
+        return MLP(in_dim, n_classes, cfg.hidden, cfg.dropout)
+    if cfg.arch == "moe_shared":
+        ML = _moe_mod("moe_layers")
+        return ML.SharedExpertMoE(
+            in_dim, n_classes, hidden=cfg.hidden, dropout=cfg.dropout,
+            n_experts=cfg.n_experts, top_k=cfg.top_k,
+            expert_hidden=tuple(cfg.expert_hidden), gate_src=cfg.gate_src)
+    raise ValueError(f"unknown arch {cfg.arch!r} (mlp | moe_shared)")
 
 
 def set_seed(s):
@@ -211,7 +258,7 @@ def gpu_macro_f1(y_true_t: torch.Tensor, y_pred_t: torch.Tensor, n_classes: int)
 def _train_one(Xtr_t, ytr_t, Xval_t, yval_t, in_dim, n_classes, w, cfg: Config, seed):
     """Single model, fast loop: data already on-GPU, AMP, on-GPU val F1."""
     set_seed(seed)
-    model = MLP(in_dim, n_classes, cfg.hidden, cfg.dropout).to(DEVICE)
+    model = build_model(in_dim, n_classes, cfg).to(DEVICE)
     if cfg.compile:
         model = torch.compile(model)
     crit = nn.CrossEntropyLoss(weight=w, label_smoothing=cfg.label_smooth)
@@ -272,7 +319,7 @@ def _train_one_streamed(Xtr_t, ytr_t, Xval_t, yval_t, in_dim, n_classes, w, cfg,
     end. Early-stopping decisions are identical (same +1e-4 margin, same patience).
     """
     set_seed(seed)
-    model = MLP(in_dim, n_classes, cfg.hidden, cfg.dropout).to(DEVICE)
+    model = build_model(in_dim, n_classes, cfg).to(DEVICE)
     crit = nn.CrossEntropyLoss(weight=w, label_smoothing=cfg.label_smooth)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay,
                            fused=(cfg.fused and DEVICE == "cuda"))
@@ -393,6 +440,23 @@ class Ensemble:
                                              device=DEVICE)
         return self._mean_t, self._std_t
 
+    def _fused(self):
+        """The MoE ensemble rewritten as batched matmuls, or None for an MLP.
+
+        A `moe_shared` member is a Python loop over 8 experts of three tiny
+        Linears, so a 5-member chunk dispatches ~350 kernels that each do a few
+        microseconds of work; folding the 40 experts and 5 trunks into shared
+        GEMMs is ~2x on the deployed path and bit-identical on the class map
+        (autoresearch/moe_fast.py, and README.md's ladder). Built once, lazily,
+        because it is inference-only state that `save()` must not carry.
+        """
+        if self.cfg.arch != "moe_shared" or DEVICE != "cuda":
+            return None
+        if getattr(self, "_fused_ens", None) is None:
+            MF = _moe_mod("moe_fast")
+            self._fused_ens = MF.FusedMoEEnsemble.from_models(self.models)
+        return self._fused_ens
+
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Averaged softmax over the ensemble. X: [n, F] raw features."""
         Xs = self._standardize(X)
@@ -402,7 +466,7 @@ class Ensemble:
             P += _proba(m, X_t, self.n_classes, self.amp)
         return (P / len(self.models)).cpu().numpy()
 
-    def predict_proba_gpu(self, X_raw_t: torch.Tensor, chunk: int = 262144) -> torch.Tensor:
+    def predict_proba_gpu(self, X_raw_t: torch.Tensor, chunk: int = None) -> torch.Tensor:
         """RAW features already on-GPU [n,F] -> mean-softmax proba [n,C] on-GPU.
 
         Standardizes on-device (no numpy round-trip) and averages the ensemble
@@ -411,32 +475,51 @@ class Ensemble:
         bounds the intermediate activations so a big block can't OOM.
         """
         mean_t, std_t = self._gpu_stats()
+        chunk = chunk or self.default_chunk
         n = X_raw_t.shape[0]
         out = torch.empty((n, self.n_classes), device=DEVICE, dtype=torch.float32)
-        E = len(self.models)
+        fast, E = self._fused(), len(self.models)
         for i in range(0, n, chunk):
             xb = (X_raw_t[i:i + chunk] - mean_t) / std_t
-            acc = torch.zeros((xb.shape[0], self.n_classes), device=DEVICE)
             with torch.no_grad():
+                if fast is not None:
+                    out[i:i + chunk] = fast.mean_proba(xb)
+                    continue
+                acc = torch.zeros((xb.shape[0], self.n_classes), device=DEVICE)
                 for m in self.models:
                     acc += F.softmax(m(xb).float(), 1)
             out[i:i + chunk] = acc / E
         return out
 
-    def predict_classmap_gpu(self, X_raw_t: torch.Tensor, chunk: int = 262144):
+    @property
+    def default_chunk(self):
+        """Rows per forward chunk on the raster path.
+
+        A MoE holds a (chunk, 40, 64) dense-expert activation — 4.0 GB at the old
+        262144 — and `bench_moe_fast.py --chunk-sweep` shows throughput flat from
+        65536 up, so the larger chunk was four times the memory for nothing.
+        The MLP has no such tensor and keeps its original value.
+        """
+        return 65536 if self.cfg.arch == "moe_shared" else 262144
+
+    def predict_classmap_gpu(self, X_raw_t: torch.Tensor, chunk: int = None):
         """Raw-GPU features -> argmax RAW class codes as int16 on-GPU.
 
         Skips building/keeping the full [n,C] proba array — for a class map we
         only need the argmax, so we reduce per-chunk. Returns [n] int16.
         """
         mean_t, std_t = self._gpu_stats()
+        chunk = chunk or self.default_chunk
         n = X_raw_t.shape[0]
         cls = torch.empty(n, device=DEVICE, dtype=torch.int16)
-        E = len(self.models)
+        fast, E = self._fused(), len(self.models)
         for i in range(0, n, chunk):
             xb = (X_raw_t[i:i + chunk] - mean_t) / std_t
-            acc = torch.zeros((xb.shape[0], self.n_classes), device=DEVICE)
             with torch.no_grad():
+                if fast is not None:
+                    cls[i:i + chunk] = self._decode_t[fast.mean_proba(xb).argmax(1)]
+                    continue
+                acc = torch.zeros((xb.shape[0], self.n_classes), device=DEVICE)
                 for m in self.models:
                     acc += F.softmax(m(xb).float(), 1)
             cls[i:i + chunk] = self._decode_t[acc.argmax(1)]
@@ -465,20 +548,35 @@ class Ensemble:
         }
 
     def predict_full_gpu(self, X_raw_t: torch.Tensor, calib: "Calibration",
-                         chunk: int = 262144) -> dict:
+                         chunk: int = None) -> dict:
         """Raw-GPU features -> full UQ bundle, numpy-side (host) outputs.
 
-        The ensemble forward pass runs on-GPU (`predict_proba_gpu`); the
-        calibration step (temp-scale or Venn-Abers OvR + LAC/Mondrian sets)
-        is numpy/CPU since it's a cheap per-class searchsorted/divide, not a
-        matmul — negligible next to raster I/O (see DNN/README.md's
-        I/O-bound finding for predict_raster.py).
+        Forward pass AND calibration both run on-device. Calibration used to be
+        numpy on the host "since it's a cheap per-class searchsorted, negligible
+        next to raster I/O" — that stopped being true once the I/O got fast: at
+        400k rows it measured 962 ms against a 241 ms forward pass, 80% of this
+        function and a hard 0.42 M px/s ceiling on the whole pipeline, since it
+        blocks the one GPU thread and therefore the reader pool behind it. On
+        device the same transform is 37 ms (25x), taking this function from
+        1238 ms to 134 ms at 400k rows — 0.32 -> 2.99 M px/s, which puts UQ back
+        below the I/O wall instead of being the wall. `Calibration.predict_*_gpu`
+        mirror the numpy dtypes, so venn_abers output is bit-identical; see their
+        docstrings for the temp_scale ULP caveat. DNN/verify_deploy.py checks
+        both paths against each other on the real checkpoint.
+
+        Only the small typed outputs cross PCIe; the [n,C] float32 raw proba
+        never leaves the device.
         """
         P_raw_t = self.predict_proba_gpu(X_raw_t, chunk)
-        pred_enc = P_raw_t.argmax(1).cpu().numpy()   # argmax on-GPU; only the small index array crosses PCIe here
-        P_raw = P_raw_t.cpu().numpy()                # full proba still needed host-side for calibration below
-        proba_cal = calib.predict_proba_calibrated(P_raw)
-        included, set_size = calib.predict_sets(P_raw)
+        pred_enc = P_raw_t.argmax(1).cpu().numpy()
+        if P_raw_t.is_cuda:
+            proba_cal = calib.predict_proba_calibrated_gpu(P_raw_t).cpu().numpy()
+            included_t, set_size_t = calib.predict_sets_gpu(P_raw_t)
+            included, set_size = included_t.cpu().numpy(), set_size_t.cpu().numpy()
+        else:
+            P_raw = P_raw_t.numpy()
+            proba_cal = calib.predict_proba_calibrated(P_raw)
+            included, set_size = calib.predict_sets(P_raw)
         return {
             "pred_class": np.array(self.classes, dtype=np.int64)[pred_enc],
             "proba_calibrated": proba_cal,
@@ -496,6 +594,7 @@ class Ensemble:
             "mean": self.mean, "std": self.std, "classes": self.classes,
             "feat_cols": self.feat_cols, "cfg": self.cfg.to_dict(),
             "lidar_med": self.lidar_med, "in_dim": len(self.feat_cols),
+            "arch": self.cfg.arch,
         }, path)
         return path
 
@@ -503,11 +602,16 @@ class Ensemble:
     def load(cls, path, device=None):
         dev = device or DEVICE
         ck = torch.load(path, map_location=dev, weights_only=False)
-        cfg = Config(**{k: (tuple(v) if k == "hidden" else v)
-                        for k, v in ck["cfg"].items() if k in Config.__dataclass_fields__})
+        # Checkpoints written before `arch` existed are all MLPs; `Config`'s own
+        # default comes from $ARCH, which must not be allowed to reinterpret an
+        # old file as a MoE.
+        saved = dict(ck["cfg"])
+        saved.setdefault("arch", ck.get("arch", "mlp"))
+        cfg = Config(**{k: (tuple(v) if k in ("hidden", "expert_hidden") else v)
+                        for k, v in saved.items() if k in Config.__dataclass_fields__})
         models = []
         for sd in ck["state_dicts"]:
-            m = MLP(ck["in_dim"], len(ck["classes"]), cfg.hidden, cfg.dropout).to(dev)
+            m = build_model(ck["in_dim"], len(ck["classes"]), cfg).to(dev)
             m.load_state_dict(sd)
             m.eval()
             models.append(m)
@@ -523,12 +627,20 @@ class Calibration:
     prediction sets. All numpy, CPU-side — cheap relative to raster I/O.
     """
 
-    def __init__(self, calib_method, taus, classes, T=None, va_calibrators=None):
+    def __init__(self, calib_method, taus, classes, T=None, va_calibrators=None,
+                 arch=None):
         self.calib_method = calib_method          # "temp_scale" | "venn_abers"
         self.taus = np.asarray(taus, dtype=np.float64)   # [n_classes], LAC+Mondrian
         self.classes = list(classes)
         self.T = T                                  # scalar, if temp_scale
         self.va_calibrators = va_calibrators         # {class_idx: (p0,p1,c)}, if venn_abers
+        # Architecture of the ensemble these calibrators were FIT on, or None for
+        # files written before this was recorded. Venn-Abers breakpoints and LAC
+        # taus are properties of one model's score distribution, so reusing them
+        # across architectures silently voids the coverage guarantee — and the
+        # class list, the only thing previously checked, is identical between the
+        # MLP and the MoE. See predict_raster.py's guard.
+        self.arch = arch
 
     @property
     def n_classes(self):
@@ -550,7 +662,80 @@ class Calibration:
                 for c in range(n_classes)
             }
         return cls(method, z["lac_mondrian_taus"], classes,
-                   T=float(z["T"]), va_calibrators=va_calibrators)
+                   T=float(z["T"]), va_calibrators=va_calibrators,
+                   arch=str(z["arch"]) if "arch" in z.files else None)
+
+    # ----------------------------------------------------------------- on-GPU
+    # The raster path applies these to every valid pixel of a county, and the
+    # numpy implementation below is the pipeline's wall once the reads got fast:
+    # Venn-Abers is 20 binary searches into ~330k-entry breakpoint arrays per
+    # row, which measured 962 ms of a 1238 ms GPU-thread step at 400k rows (0.42
+    # M px/s) — and it runs INSIDE the single GPU thread, so it stalls the reader
+    # pool too. torch.searchsorted has exactly numpy's left/right semantics, so
+    # the whole transform moves to the device with no change in arithmetic; the
+    # `_selftest` at the bottom of this class asserts bit-equality on both paths.
+    def _gpu_tables(self, device):
+        """Upload the calibration tables once (~80 MB for a 10-class VA fit)."""
+        if getattr(self, "_gpu_dev", None) == str(device):
+            return self._gpu_tbl
+        t = {"taus": torch.as_tensor(self.taus, device=device, dtype=torch.float64)}
+        if self.va_calibrators is not None:
+            # Only column 1 of p0/p1 is ever read, so slice at upload: half the
+            # memory and a contiguous gather instead of a strided one.
+            t["va"] = [
+                (torch.as_tensor(np.ascontiguousarray(c), device=device,
+                                 dtype=torch.float64),
+                 torch.as_tensor(np.ascontiguousarray(p0[:, 1]), device=device,
+                                 dtype=torch.float64),
+                 torch.as_tensor(np.ascontiguousarray(p1[:, 1]), device=device,
+                                 dtype=torch.float64))
+                for p0, p1, c in (self.va_calibrators[i]
+                                  for i in range(self.n_classes))]
+        self._gpu_dev, self._gpu_tbl = str(device), t
+        return t
+
+    def predict_proba_calibrated_gpu(self, P_t: "torch.Tensor") -> "torch.Tensor":
+        """On-device twin of `predict_proba_calibrated`. [n,C] f32 -> [n,C] f32.
+
+        Dtypes mirror the numpy path deliberately — float64 for the Venn-Abers
+        searchsorted/divide, float32 throughout temperature scaling — because
+        the widths, not just the formulas, decide the result.
+
+        venn_abers (the fitted method) comes out BIT-IDENTICAL to numpy: it is
+        all comparisons, gathers and divides, and torch.searchsorted's
+        right=True/False are exactly numpy's side="right"/"left".
+        temp_scale agrees to one float32 ULP (2.4e-7 max, measured at 400k rows)
+        because torch and numpy use different libm exp/log — far below the
+        1/60000 quantisation the raster path writes this band at, and it cannot
+        move a prediction set, which is scored on the RAW proba (`predict_sets`).
+        """
+        tbl = self._gpu_tables(P_t.device)
+        if self.calib_method == "temp_scale":
+            logp = torch.log(P_t.clamp(1e-12, 1.0))
+            z = logp / self.T
+            z = z - z.amax(1, keepdim=True)
+            e = torch.exp(z)
+            return e / e.sum(1, keepdim=True)
+        p1_out = torch.empty(P_t.shape, device=P_t.device, dtype=torch.float64)
+        for c, (cpts, p0col, p1col) in enumerate(tbl["va"]):
+            out = P_t[:, c].to(torch.float64)     # numpy promotes the needle too
+            p0_at = p0col[torch.searchsorted(cpts, out, right=True)]
+            p1_at = p1col[torch.searchsorted(cpts, out, right=False)]
+            p1_out[:, c] = p1_at / (1.0 - p0_at + p1_at)
+        total = p1_out.sum(1, keepdim=True)
+        total = torch.where(total == 0, torch.ones_like(total), total)
+        return (p1_out / total).to(torch.float32)
+
+    def predict_sets_gpu(self, P_t: "torch.Tensor"):
+        """On-device twin of `predict_sets`. -> (bool [n,C], int32 [n]).
+
+        `1.0 - P` is evaluated in float32 and only then widened for the
+        comparison, because that is what numpy does with a float32 `P` and
+        float64 `taus`, and the rounding is observable at a tie.
+        """
+        tbl = self._gpu_tables(P_t.device)
+        included = (1.0 - P_t).to(torch.float64) <= tbl["taus"][None, :]
+        return included, included.sum(1).to(torch.int32)
 
     def predict_proba_calibrated(self, P: np.ndarray) -> np.ndarray:
         """Raw ensemble softmax [n, C] -> calibrated proba [n, C] (sums to 1)."""

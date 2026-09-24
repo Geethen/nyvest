@@ -59,8 +59,10 @@ LR = float(os.environ.get("LR", "1e-3"))
 LB_COEF = float(os.environ.get("LB_COEF", "0.01"))
 CLEAN_CLS12 = os.environ.get("CLEAN_CLS12", "1") == "1"
 OUT_JSON = result_path(f"stage7_spatial_{MODE}_e{N_EXPERTS}.json")
-NAMES = {2: "sparse-veg", 3: "forest", 4: "forest", 5: "GRASSLAND", 6: "open-upland",
-         7: "mire/wet", 8: "water", 10: "bare", 11: "built/infra", 12: "snow/ice"}
+# Authoritative grunnkart/FSCS codebook (see README). data_utils merges 1->2
+# (sand into rock) and 9->8 (marine into freshwater).
+NAMES = {2: "rock+sand", 3: "crop", 4: "forest", 5: "grassland", 6: "scrub",
+         7: "wetland", 8: "water", 10: "built", 11: "sparse-veg", 12: "snow/ice"}
 
 
 class SpatialMoE(nn.Module):

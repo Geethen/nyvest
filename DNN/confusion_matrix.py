@@ -27,8 +27,10 @@ SEED = 0
 N_ENSEMBLE = 5
 PERFOLD_NPZ = (Path(__file__).resolve().parents[1] / "common_ground" /
                "reports" / "research" / "clean_labels_perfold.npz")
-LABELS = {2: "bare", 3: "cropland", 4: "forest", 5: "grassland", 6: "scrub",
-          7: "wetland", 8: "water", 10: "settle", 11: "infra", 12: "snow/ice"}
+# Authoritative grunnkart/FSCS codebook (see README). NOTE data_utils merges
+# 1->2 (sand into rock) and 9->8 (marine into freshwater), so 1 and 9 are absent.
+LABELS = {2: "rock+sand", 3: "crop", 4: "forest", 5: "grassland", 6: "scrub",
+          7: "wetland", 8: "water", 10: "built", 11: "sparse-veg", 12: "snow/ice"}
 
 
 def fit_predict(Xtr, ytr, Xte, n_classes, rng):

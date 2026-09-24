@@ -1,0 +1,142 @@
+[
+  {
+    "title": "The whole search is worth an eighth of the nonlinearity",
+    "state": "settled",
+    "body": "A multinomial logistic regression on the same 67 standardized features, the same folds, the same sqrt weights and the same cls12 relabel scores 0.7040 against the deployed net's 0.7414 \u2014 so everything two hidden layers and a 5-seed ensemble buy over a LINEAR read of AlphaEarth is +0.0373, paired on every fold. The best of 69 searched mechanisms adds +0.0040 on top of that, roughly 9 times smaller, and it does not survive a fresh seed. The nonlinearity is worth most where the search wants to work \u2014 on the weak classes the probe loses class 2 -0.087, class 5 -0.054, class 6 -0.032, class 7 -0.047 \u2014 which is the same statement from the other side: the representation the net builds is doing the work that is left, and nobody has found a way to add to it."
+  },
+  {
+    "title": "A tuned forest fits the training regions far better and transfers worse",
+    "state": "settled",
+    "body": "Same harness, a 6-cell grid ranked on the inner val and refit at 500 trees: inner val 0.8825 \u2014 far past the deployed net's 0.7974, and past the linear probe's 0.7134 by +0.1691 \u2014 and then 0.6945 on held-out regions, -0.0095 against that same probe. The val-to-test gap is 0.188 against the net's 0.056. Every cell of the grid picked the least regularised corner (max_features=32, min_samples_leaf=1) because on a random inner val more fit always looks better. This is the capacity finding, the regularisation sweep and the locality round arriving from a fourth direction: in-distribution fit is not the currency here, and axis-aligned splits are the wrong shape for a decision surface that has to be moved to an unseen region."
+  },
+  {
+    "title": "No arm in this round earns its inference cost",
+    "state": "settled",
+    "body": "Measured on the deployed path (predict_classmap_gpu, 5-seed ensemble, 262,144-row chunks, NVIDIA A40-24Q) over the wall-to-wall target of 1.3B px: the deployed MLP takes 2.7 min behind a ~15 min raster read, so it is 5.8x inside the I/O wall and effectively free. moe_shared@8 experts \u2014 the best mean delta in the round \u2014 takes 13.5 min, 5.0x the baseline, which still hides under the read on this 8-core box but consumes 87% of the headroom; at 16 experts it crosses the read outright. mod_depth, the only arm the capacity control does not explain, costs 1.8x. Wall time is worse than the FLOPs (5.0x for 2.0x the MACs) because the code loops over every expert and the narrow expert layers each re-read the whole input block \u2014 top-k here buys capacity, not sparsity. Priced against a +0.0040 that halves on a reseed, none of them is worth adopting; and since local_off reproduces the deployed trunk bit-for-bit, any of them could be switched back off without retraining if it ever were."
+  },
+  {
+    "title": "Almost all of the MoE's gain is parameters, not locality",
+    "state": "settled",
+    "body": "The shared-expert MoE lifts inner val from 0.7974 to 0.8152, which reads as locality being learned in-distribution and failing to transfer. A plain MLP widened to the same 78k parameters, with no router and no experts, reaches 0.8121 \u2014 and on fold 1 it BEATS the MoE's val outright, 0.8104 to 0.8089. Of the +0.0178 val gain, plain capacity accounts for +0.0147 and routing for +0.0031; on the held-out region the split is +0.0007 and +0.0016. Routing's share of both is inside the noise. The honest reading is not that locality was learned and lost at the fold boundary \u2014 it is that adding a routed local branch does about as much as adding the same weights in a straight line."
+  },
+  {
+    "title": "The +0.0023 shrank on a fresh seed but, unusually here, did not vanish",
+    "state": "settled",
+    "body": "moe_shared was the best result of this round and the only trial in fifty with all three folds positive. Re-run on an independent seed set \u2014 new inner-val split, all five members reseeded, scored against a seed-1 baseline \u2014 it came back +0.0016 with folds +0.0004 / +0.0010 / +0.0034. It shrank by about 30 percent and stayed positive on all six fold-by-seed combinations, which is more than the previous programme's best managed: that one halved to +0.0013 AND flipped fold 0 negative on both seeds. So this is a tie by the pre-registered rule and it is also the most durable tie the programme has produced. Seed-averaged it is +0.0019, of which the matched-capacity control accounts for +0.0007, leaving routing about +0.0012 \u2014 one noise floor."
+  },
+  {
+    "title": "A perfect region-picking router is capped BELOW the global model",
+    "state": "settled",
+    "body": "bound_region_oracle fine-tunes one copy of the model per KMeans region and then cheats with the test labels, twice. Picking the single best regional specialist for each held-out fold with hindsight scores 0.7341 against the global model's 0.7414 \u2014 a ceiling 0.0072 BELOW the thing it is meant to beat, and none of the twelve regional models across three folds beats the global model even once. So a router that assigns one expert per region is not under-engineered here, it is capped below baseline before a single routing decision is made, which is why every hard-routed variant since stage6 has lost. The per-row oracle, free to pick whichever of the five models happens to be right for each individual pixel, reaches 0.8144, or +0.0730 of headroom. That is the same shape and nearly the same size as the +0.063 ensemble-member oracle that closed the MoE question the last time, and it is unreachable for the same reason: it measures disagreement, and disagreement here does not track correctness."
+  },
+  {
+    "title": "The one arm the capacity control does not explain is adaptive DEPTH",
+    "state": "open",
+    "body": "mixture-of-depths routes only the hardest half of rows through an extra zero-initialised block and lets the rest bypass it. It scored +0.0028, the highest delta of the whole fifty-trial programme, with all three folds positive, no strong class down more than 0.0013, and all four weak classes up. What makes it different from every other locality arm is the direction of its validation score: it carries MORE parameters than the matched-capacity control (84.9k vs 78.0k) yet scores LOWER on inner val (0.8040 vs 0.8121) while scoring HIGHER on the held-out region (+0.0028 vs +0.0007). Every other mechanism in this round bought val and returned nothing; this one did the reverse, which is the signature of generalisation rather than memorisation. On a fresh seed it halved to +0.0013 \u2014 winner's curse again \u2014 but stayed positive on all six fold-by-seed combinations, averaging +0.0021. Still a tie against the +0.003 bar. It is the only idea here that earned a follow-up rather than a filing. The pre-registered capacity sweep now adds a symmetric interior optimum: routing 25 percent of rows through the extra block scores +0.0017, 50 percent +0.0028, 75 percent +0.0017. Both ends collapse toward things already measured \u2014 at 0.75 nearly every row takes the block, which is plain extra capacity and worth +0.0007, and at 0.25 almost none does, which is the baseline. The peak sits where the routing decision is actually selective, which is what the mechanism claims to be for. The margins are close to the 0.0013 noise floor, so the shape is more informative than the numbers."
+  },
+  {
+    "title": "Finer experts buy more validation fit and less consistency",
+    "state": "settled",
+    "body": "DeepSeekMoE's central claim is that many small experts beat few large ones. The granularity axis here runs 4 / 8 / 16 experts at +0.0023 / +0.0040 / +0.0033 mean delta, and the mean is the wrong thing to read. Per fold it goes +0.0002/+0.0014/+0.0053, then -0.0003/+0.0004/+0.0117, then -0.0010/-0.0006/+0.0115: as the partition gets finer the gain migrates entirely into fold 2 while the other two folds slide negative. Inner val climbs monotonically across the same axis, 0.8152 to 0.8236 to 0.8248, all of it above the matched-capacity control's 0.8121. So finer granularity does exactly what more capacity does on this model \u2014 buys in-distribution fit \u2014 and it buys LESS consistency across the fold boundary while doing it. The 8-expert arm's +0.0040 is the largest mean delta of the whole programme and the only one above the +0.003 bar; it is a tie, and it is the cleanest illustration in sixty trials of why the all-folds-positive rule exists."
+  },
+  {
+    "title": "A verdict-logic bug that published positive results as losses",
+    "state": "method",
+    "body": "The rule was WIN, else tie, else LOSS, which meant a mean ABOVE the +0.003 bar that failed the all-folds test fell through to LOSS. Both fine-grained arms hit that path and were written to the page as losses at +0.0040 and +0.0033. Verdicts now emit `split` for a strongly positive mean carried by one fold, kept distinct from a genuine negative. Two records were affected; `fix_verdicts.py` re-derives the label for every record from its own stored delta and all-folds flag, so no score moved and nothing was re-run. It exists as a script rather than a one-off because a loop process that imported the old module keeps writing the old label until it restarts."
+  },
+  {
+    "title": "Across eleven locality mechanisms, buying validation buys nothing on the map",
+    "state": "settled",
+    "body": "Ranked by inner val, the ten comparable arms run from mod_depth at 0.8040 to moe_lora at 0.8418, and the held-out delta runs the other way: the two arms that fit the training regions best, LoRA experts at 0.8418 and the FiLM hypernet at 0.8283, land at +0.0003 and -0.0016, while the arm with the LOWEST val is the only one that clears +0.0025. Pearson correlation between val and test delta is -0.60 (p=0.07), Spearman -0.46 (p=0.19) \u2014 a negative trend that does not reach significance at n=10 and leans on those two arms, so it is suggestive rather than established. It points the same way as the capacity control, the scaling study and the regularisation sweep: on this model, anything that lifts in-distribution fit is at best neutral across the fold boundary."
+  },
+  {
+    "title": "Zero-initialising the local branch turned out not to matter either",
+    "state": "settled",
+    "body": "Both design rules this round was built on were argued from first principles, and the pre-registered controls broke one of them. Starting the routed experts at zero means the network computes the deployed model exactly at step 0, so it can only add \u2014 an appealing guarantee, and the specific thing the old spatial MoEs could not claim. Running the same architecture with ordinary random init scores +0.0024 against zero-init's +0.0023. No difference. The guarantee is real and it buys nothing, which fits everything else here: the routed branch is not where the outcome is decided."
+  },
+  {
+    "title": "The full locality ledger: eleven mechanisms, no wins",
+    "state": "settled",
+    "body": "Delta against 0.7414, all ties: mod_depth +0.0028, moe_echoice +0.0026, moe_shared +0.0023, moe_lossfree +0.0020, moe_geo +0.0014, moe_auxbal +0.0013, knn_retrieval +0.0012 against its own group-val control, ctrl_capacity +0.0007, moe_lora +0.0003, moe_terrain +0.0001, film_hyper -0.0016, moe_soup -0.0017. Two families are worth naming. The four load-balancing variants \u2014 none, loss-free bias, Switch plus z-loss, and expert choice \u2014 span +0.0013 to +0.0026, so how the router is balanced matters as little as what it reads. And moe_soup, the most literal reading of the whole idea, fine-tuning one copy of the model per geographic region and averaging the copies in weight space, is the second-worst arm in the round at -0.0017."
+  },
+  {
+    "title": "The soup control separates fine-tuning from locality, and locality is the harmful half",
+    "state": "settled",
+    "body": "moe_soup fine-tunes a copy per region and averages the copies in weight space, scoring -0.0017. Its pre-registered control, the same extra fine-tuning with n_regions=1 so nothing is regional, scores -0.0008. Extra fine-tuning on its own costs 0.0008; splitting that fine-tuning geographically costs a further 0.0009. Both halves are negative, and the specifically LOCAL half is the larger of the two."
+  },
+  {
+    "title": "The gate source turned out not to matter, which was not the prediction",
+    "state": "settled",
+    "body": "The round was designed around a contrast: route on CONTENT the way an LLM MoE does, and it should beat routing on POSITION the way stage7 did, because a held-out region cannot be placed inside a coordinate partition. The three arms came in at +0.0023 (content), +0.0014 (lon/lat) and +0.0001 (terrain) \u2014 a spread narrower than this harness's noise floor of about 0.0013. Whatever separates these arms from stage7's -0.004 to -0.023, it is not what the router reads."
+  },
+  {
+    "title": "The router did not collapse \u2014 it transferred perfectly and that changed nothing",
+    "state": "settled",
+    "body": "stage7's hard KMeans gate put 84-95 percent of a held-out fold on one expert, and that diagnosis is what this round was built to fix. It was not the problem. Under soft top-2 routing the busiest expert's share on the held-out region matches its share on the training rows to within 0.01 on every arm and every fold \u2014 content 0.426/0.435, terrain 0.524/0.527, even lon/lat 0.305/0.310. The partition travels across the fold boundary intact. The knowledge attached to it does not."
+  },
+  {
+    "title": "What actually changed since stage7 is addition, not routing",
+    "state": "open",
+    "body": "Nine earlier MoE variants LOST, from -0.0024 to -0.0226, because routing replaced the global model with a partition of it and each expert then trained on a fraction of the data. These arms tie instead, and the one structural difference is that the global model is still here: an always-on shared expert trained on every row, with zero-initialised experts that start at exactly the deployed network. Shared-expert isolation converts a losing MoE into a harmless one. It does not convert it into a winning one."
+  },
+  {
+    "title": "A retrieval datastore, priced honestly, is worth nothing",
+    "state": "settled",
+    "body": "kNN-LM interpolation over training rows in the network's own representation space is the purest local model available \u2014 no partition, no experts, just which rows this pixel resembles. Scored against the group-val control it gains +0.0012, with the fitted mixing weight landing at lambda=1.00 on fold 0, meaning the grid search declined to use retrieval at all. Retrieval alone scores 0.730/0.729/0.721 against the network's 0.740/0.742/0.730, so the datastore is nearly as good as the network and adds almost nothing to it."
+  },
+  {
+    "title": "The same retrieval looked worth +0.015 with a dishonest validation split",
+    "state": "method",
+    "body": "Fitted on a RANDOM inner val, the retrieval mixing weight came out at lambda=0.6 and appeared to buy about +0.015. Fitted on whole held-out cells it comes out at 1.00 and buys nothing. A random val row's nearest neighbours include rows from its own cell, so retrieval is being scored on a lookup it will never get to perform in a new region. Same mechanism, same code, opposite conclusion \u2014 which is the entire reason decision-rule trials on this page are scored against baseline_gval."
+  },
+  {
+    "title": "A local model needs more labels than the region contains",
+    "state": "settled",
+    "body": "Inside a held-out region, with labels bought as whole cells and scored on evaluation cells nothing trains on: a model trained only on local labels scores -0.238 against the global model at 7.4k local labels, -0.129 at 49k, and -0.029 at 92k. It converges toward the global model and does not reach it, and 92k is already most of the labels the region has. Fine-tuning the global model on those same labels is worse than leaving it alone at every budget (-0.057, -0.083, -0.009): the local set is too small and too class-skewed to adapt on without forgetting. The one thing that does work is the least interesting \u2014 pooling the local labels into the global training set, +0.001 to +0.004."
+  },
+  {
+    "title": "The harness reproduces the deployed model exactly",
+    "state": "settled",
+    "body": "Baseline scores 0.7414 with per-fold 0.7473 / 0.7459 / 0.7309 and a per-class profile identical to the stored ontology reference. Every delta on this page is paired against that run, not against a number carried over from another script."
+  },
+  {
+    "title": "Holding the inner val out by whole cells costs 0.0042",
+    "state": "settled",
+    "body": "baseline_gval is the same recipe with the early-stopping split taken as whole cell_ids instead of random rows. It scores 0.7372. Stopping on an honest transfer estimate makes the model worse, reproducing the earlier spatial-early-stopping result from a different direction. Trials that need a spatial inner val are scored against this control, not against the baseline, so they are not charged twice for the same tax."
+  },
+  {
+    "title": "The best of 45 trials does not survive a fresh seed",
+    "state": "settled",
+    "body": "Schedule-Free AdamW combined with a trainable xIELU activation scored +0.0028, the highest of the whole program, and only missed the win bar because fold 0 was -0.0012. Re-run on an independent seed set \u2014 new inner-val split, all five ensemble members reseeded \u2014 it fell to +0.0013, with fold 0 negative again. Sixteen of thirty round-1 mechanisms land inside plus or minus 0.003 and that cluster is centred on zero (mean -0.00036, sd 0.00131), so across 45 draws the expected best is about +0.0031 by chance alone. The top result is exactly what selecting the maximum of a null distribution looks like, and it shrank on cue."
+  },
+  {
+    "title": "Nothing moves the weak classes; only the rare class moves at all",
+    "state": "settled",
+    "body": "Across 45 mechanisms, every per-class change larger than 0.01 lands on snow/ice, scrub or rock/sand, and it goes in both directions depending on the run \u2014 snow/ice alone swings from -0.027 to +0.034. Those are the smallest classes, so that is variance, not response. Grassland, wetland and the crop/grassland and scrub/sparse-veg boundaries never move by more than about 0.005 in any trial that is not an outright collapse. The four weak classes are not merely hard to improve; they are unresponsive to margins, priors, hierarchy, oversampling, distillation, new activations, new optimizers, new architectures and transductive adaptation alike."
+  },
+  {
+    "title": "The decision-rule headroom is mostly an illusion",
+    "state": "settled",
+    "body": "Refitting per-class offsets on each test fold appears to buy +0.0064 over the same probabilities, which looked like real headroom sitting outside the network. It is not. Fitting those same 10 offsets on a RANDOM SUBSET of the target region and scoring on the rows left out is negative or flat at every budget tested, right up to 22,000 labels per fold (-0.0173 at 442 labels, -0.0018 at 22,124). Ten free parameters tuned against a non-smooth metric on the very rows they are scored on will always look good. The honest reading is that argmax is already close to the best rule this posterior supports, and no labelling budget in a new region changes that."
+  },
+  {
+    "title": "Every prior correction that is strong enough to matter is too strong",
+    "state": "settled",
+    "body": "The imbalance-loss family separates cleanly by correction strength rather than by method. LDAM-DRW, whose margin is capped at 0.5, ties at -0.0002. Balanced softmax, which applies the full log-prior, costs -0.1224. Vector scaling at the paper's nominal tau=1.0 collapses to 0.1409 with the FREQUENT classes falling to F1 0.000. On a 140:1 imbalance the full correction is a 4.9-nat spread that boosts the rarest class about 134x at test. Retuned to tau=0.25, VS still loses 0.0081, and since the additive term alone was worth +0.0015 in earlier work, the harm is isolated to VS's multiplicative margin term."
+  },
+  {
+    "title": "A specialist with the whole boundary to itself still loses",
+    "state": "settled",
+    "body": "hier_specialist trains a dedicated binary expert on crop-vs-grassland and scrub-vs-sparse-veg and consults it only on rows the base model already assigns to those pairs. The structural guarantee held perfectly: classes 2, 4, 7, 8, 10 and 12 moved by exactly 0.0000. But the experts made their own pairs worse (crop -0.0067, grassland -0.0076, sparse-veg -0.0107) while switching about 6,000 rows per fold. A model with nothing to do but separate two classes, trained on every row of both, cannot beat a ten-way classifier at that same job. This is what a boundary that is definitional rather than capacity-limited looks like."
+  },
+  {
+    "title": "Hierarchy helps the rare class, not the boundaries it was built for",
+    "state": "open",
+    "body": "The factorised coarse-to-fine head was designed around the ontology probe, which priced 0.044 macro-F1 inside the crop/grassland and scrub/sparse-veg superclasses. It moved those two boundaries by about 0.0007, which is nothing. Its one real effect was snow/ice +0.0151. Mean delta +0.0011 with folds -0.0016 / -0.0001 / +0.0050 is a tie, not a win, by the all-folds-positive rule."
+  },
+  {
+    "title": "A caught bug worth recording",
+    "state": "method",
+    "body": "The target-prior EM first ran at macro-F1 0.0004. The cause was passing empirical label frequencies as the source prior when the network trains with sqrt class weights, so its posterior already carries a flattened prior; dividing by the steeper one re-boosted rare classes each iteration and the recursion ran away to 99.3% snow/ice. Passing the model's own mean predicted probability is both the fix and what the derivation actually asks for. The estimator now refuses to return a degenerate prior instead of reporting one."
+  }
+]

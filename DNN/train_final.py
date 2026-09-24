@@ -75,7 +75,16 @@ def main():
         "feat_cols": ens.feat_cols, "classes": classes,
         "labels_changed": n_changed, "val_f1": round(ens.val_f1, 4),
         "config": cfg.to_dict(), "wall_s": round(time.perf_counter() - t0, 1),
-        "cv_reference_macro_f1": 0.7341,
+        # Macro-F1 is averaged over the classes that EXIST, so this reference is
+        # only meaningful for the label space it was measured on. 0.7341 is the
+        # 10-class figure; a merged run must pass its own via $CV_REFERENCE_F1
+        # or the meta ships a number from a different ontology.
+        "merge": du.merge_sig(),
+        "cv_reference_macro_f1": float(os.environ.get("CV_REFERENCE_F1", 0.7341)),
+        "cv_reference_note": os.environ.get(
+            "CV_REFERENCE_NOTE",
+            "3-fold spatial CV on this label space" if os.environ.get("CV_REFERENCE_F1")
+            else "10-class reference (DNN/README.md) — NOT valid if classes were merged"),
     }
     OUT.with_suffix(".meta.json").write_text(json.dumps(meta, indent=2))
     print(f"saved -> {OUT}  (val_f1={ens.val_f1:.4f}, {meta['wall_s']}s)", flush=True)

@@ -1,0 +1,821 @@
+<title>DNN architecture research loop — nyvest</title>
+<style>
+  :root {
+    --bg:#F7F8F7; --panel:#FFFFFF; --ink:#141A18; --ink-2:#5A635E; --ink-3:#89918B;
+    --line:#DFE3DF; --line-2:#EDEFEC;
+    --accent:#2F6F5E; --pos:#3E7D3A; --neg:#A2472F; --tie:#8A8F86;
+    --bar-pos:#3E7D3A26; --bar-neg:#A2472F26;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0F1418; --panel:#161C20; --ink:#E8EDE9; --ink-2:#98A29B; --ink-3:#6C766F;
+      --line:#242C30; --line-2:#1C2429;
+      --accent:#5FA48C; --pos:#6FB35F; --neg:#D2795C; --tie:#7C857E;
+      --bar-pos:#6FB35F2E; --bar-neg:#D2795C2E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#0F1418; --panel:#161C20; --ink:#E8EDE9; --ink-2:#98A29B; --ink-3:#6C766F;
+    --line:#242C30; --line-2:#1C2429;
+    --accent:#5FA48C; --pos:#6FB35F; --neg:#D2795C; --tie:#7C857E;
+    --bar-pos:#6FB35F2E; --bar-neg:#D2795C2E;
+  }
+  :root[data-theme="light"] {
+    --bg:#F7F8F7; --panel:#FFFFFF; --ink:#141A18; --ink-2:#5A635E; --ink-3:#89918B;
+    --line:#DFE3DF; --line-2:#EDEFEC;
+    --accent:#2F6F5E; --pos:#3E7D3A; --neg:#A2472F; --tie:#8A8F86;
+    --bar-pos:#3E7D3A26; --bar-neg:#A2472F26;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1120px; margin:0 auto; padding:44px 24px 80px; }
+  .eyebrow {
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-3); font-weight:600; margin:0 0 10px;
+  }
+  h1 { font-size:30px; line-height:1.18; letter-spacing:-.02em; margin:0 0 8px; text-wrap:balance; }
+  .sub { color:var(--ink-2); margin:0 0 30px; max-width:62ch; }
+  .sub strong { color:var(--ink); font-weight:600; }
+
+  .status {
+    display:flex; gap:1px; background:var(--line); border:1px solid var(--line);
+    border-radius:10px; overflow:hidden; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .stat { background:var(--panel); padding:16px 20px; flex:1 1 160px; }
+  .stat .k {
+    font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink-3); font-weight:600; margin-bottom:6px;
+  }
+  .stat .v {
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:23px; font-variant-numeric:tabular-nums; letter-spacing:-.02em;
+  }
+  .stat .v.accent { color:var(--accent); }
+  .stat .cap { font-size:12px; color:var(--ink-3); margin-top:3px; }
+
+  .panel {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; overflow:hidden;
+  }
+  .panel-h {
+    display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+    padding:14px 18px; border-bottom:1px solid var(--line); flex-wrap:wrap;
+  }
+  .panel-h h2 { font-size:14px; margin:0; letter-spacing:-.01em; }
+  .panel-h .hint { font-size:12px; color:var(--ink-3); }
+  .scroll { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; min-width:820px; }
+  th {
+    font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3);
+    font-weight:600; text-align:left; padding:10px 12px; border-bottom:1px solid var(--line);
+    white-space:nowrap; background:var(--panel);
+  }
+  td { padding:11px 12px; border-bottom:1px solid var(--line-2); vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr.is-new td { background:color-mix(in srgb, var(--accent) 4%, transparent); }
+  .c-name { position:relative; padding-left:22px; min-width:280px; }
+  .stripe { position:absolute; left:8px; top:12px; bottom:12px; width:3px; border-radius:2px; }
+  .stripe.v-win { background:var(--pos); }
+  .stripe.v-loss { background:var(--neg); }
+  .stripe.v-tie { background:var(--tie); }
+  .nm { display:block; font-weight:550; letter-spacing:-.01em; }
+  .tag {
+    display:inline-block; margin-left:7px; font-size:9.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--accent); border:1px solid var(--accent);
+    border-radius:3px; padding:0 4px; vertical-align:1px; font-weight:600;
+  }
+  .note { display:block; font-size:12px; color:var(--ink-3); margin-top:2px; }
+  .grp {
+    font-size:11px; color:var(--ink-2); border:1px solid var(--line);
+    border-radius:20px; padding:2px 9px; white-space:nowrap;
+  }
+  .c-f1, .c-d {
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  .c-f1 { font-size:14.5px; }
+  .std { color:var(--ink-3); font-size:11.5px; margin-left:5px; }
+  .c-bar { width:190px; min-width:150px; }
+  .track { position:relative; height:22px; background:var(--line-2); border-radius:3px; }
+  .zero { position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--ink-3); opacity:.5; }
+  .fill { position:absolute; top:3px; bottom:3px; border-radius:2px; }
+  .fill.pos { background:var(--bar-pos); border-right:2px solid var(--pos); }
+  .fill.neg { background:var(--bar-neg); border-left:2px solid var(--neg); }
+  .c-d { font-size:13.5px; }
+  .c-d.pos { color:var(--pos); }
+  .c-d.neg { color:var(--neg); }
+  .pf { display:block; font-size:10.5px; color:var(--ink-3); margin-top:2px; letter-spacing:-.02em; }
+  .pill {
+    font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:600;
+    border-radius:3px; padding:2px 7px; white-space:nowrap;
+  }
+  .pill.v-win { background:var(--bar-pos); color:var(--pos); }
+  .pill.v-loss { background:var(--bar-neg); color:var(--neg); }
+  .pill.v-tie { background:var(--line-2); color:var(--tie); }
+
+  .finding { margin-top:34px; }
+  .note-cell { font-size:12.5px; color:var(--ink-2); }
+  .method { margin-top:34px; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1px;
+             background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .method div { background:var(--panel); padding:16px 18px; }
+  .method h3 { font-size:12px; margin:0 0 6px; letter-spacing:-.01em; }
+  .method p { margin:0; font-size:12.5px; color:var(--ink-2); line-height:1.55; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em;
+          background:var(--line-2); padding:1px 4px; border-radius:3px; }
+  footer { margin-top:28px; font-size:12px; color:var(--ink-3); }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">nyvest · land-cover DNN · architecture search</p>
+  <h1>The ceiling is the data, not the model</h1>
+  <p class="sub">20 architectures, training objectives and feature sets were tested against a plain two-layer MLP. None beat it. The best model remains <strong>stage8 to12_fix relabel</strong> at 0.7341 — and the pattern of failures says why: test accuracy is pinned near 0.73 however much the model learns about the training regions. Every run uses the identical protocol — 663,740 rows, 67 features,
+     3-fold GroupKFold on <code>cell_id</code>, 5-seed probability ensemble, train-only cls12
+     cleaning — so a delta reflects the architecture and nothing else.</p>
+
+  <div class="status">
+    <div class="stat"><div class="k">Model to beat</div>
+      <div class="v accent">0.7318</div><div class="cap">plain 2-layer MLP + 5 seeds</div></div>
+    <div class="stat"><div class="k">Overall best</div>
+      <div class="v">0.7341</div><div class="cap">+ cls12 surgical relabel</div></div>
+    <div class="stat"><div class="k">Prior reference</div>
+      <div class="v">0.7139</div><div class="cap">CatBoost → TabICL</div></div>
+    <div class="stat"><div class="k">New experiments</div>
+      <div class="v">20</div><div class="cap">0 win · this loop</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">
+      <h2>Every architecture tried, ranked by macro-F1</h2>
+      <span class="hint">bar = delta vs baseline · per-fold deltas beneath</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Experiment</th><th>Family</th><th>Macro-F1</th>
+          <th>Δ vs baseline</th><th>Δ</th><th>Verdict</th>
+        </tr></thead>
+        <tbody>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">stage8 to12_fix relabel</span>
+          <span class="note">cls12-only surgical relabel</span>
+        </td>
+        <td class="c-group"><span class="grp">label quality</span></td>
+        <td class="c-f1">0.7341<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:2.61%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0023<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">logitadj_post_tau0.25<span class="tag">new</span></span>
+          <span class="note">logit adjustment (post) tau=0.25, replaces sqrt class weights</span>
+        </td>
+        <td class="c-group"><span class="grp">long_tail</span></td>
+        <td class="c-f1">0.7333<span class="std">±0.010</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:1.70%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0015<span class="pf">+0.001 / +0.003 / +0.001</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">combine_all_n3<span class="tag">new</span></span>
+          <span class="note">heterogeneous ensemble of TIED ideas (mlp+swiglu+rmsnorm+sam+ema), 3 seeds each = 15 members; compare vs ens_15seed to separate diversity from member count</span>
+        </td>
+        <td class="c-group"><span class="grp">ensembling</span></td>
+        <td class="c-f1">0.7322<span class="std">±0.010</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:0.45%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0004<span class="pf">+0.000 / +0.001 / +0.000</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">combine_arch_n3<span class="tag">new</span></span>
+          <span class="note">heterogeneous ensemble of TIED ideas (mlp+swiglu+rmsnorm), 3 seeds each = 9 members; compare vs ens_15seed to separate diversity from member count</span>
+        </td>
+        <td class="c-group"><span class="grp">ensembling</span></td>
+        <td class="c-f1">0.7322<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:0.45%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0004<span class="pf">+0.001 / +0.000 / +0.001</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">ens_15seed<span class="tag">new</span></span>
+          <span class="note">15-seed ensemble (vs 5) — pure variance reduction</span>
+        </td>
+        <td class="c-group"><span class="grp">ensembling</span></td>
+        <td class="c-f1">0.7321<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:0.34%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0003<span class="pf">-0.001 / +0.000 / +0.001</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">swiglu<span class="tag">new</span></span>
+          <span class="note">SwiGLU FFN (Shazeer 2020, LLaMA/PaLM) at matched params</span>
+        </td>
+        <td class="c-group"><span class="grp">swiglu</span></td>
+        <td class="c-f1">0.7320<span class="std">±0.007</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:0.23%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0002<span class="pf">-0.002 / -0.001 / +0.003</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">ens_logit_avg<span class="tag">new</span></span>
+          <span class="note">average logits (product-of-experts) not probabilities</span>
+        </td>
+        <td class="c-group"><span class="grp">ensembling</span></td>
+        <td class="c-f1">0.7319<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:0.11%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0001<span class="pf">+0.000 / -0.000 / +0.000</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">ens_temp_scaled<span class="tag">new</span></span>
+          <span class="note">per-member temperature scaling before averaging</span>
+        </td>
+        <td class="c-group"><span class="grp">ensembling</span></td>
+        <td class="c-f1">0.7319<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill pos" style="left:50.00%;width:0.11%"></span>
+          </div>
+        </td>
+        <td class="c-d pos">+0.0001<span class="pf">+0.000 / -0.000 / +0.000</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">stage3 MLP + 5-seed ens</span>
+          <span class="note">the model to beat</span>
+        </td>
+        <td class="c-group"><span class="grp">baseline</span></td>
+        <td class="c-f1">0.7318<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:50.00%;width:0.00%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">+0.0000<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">ens_entropy_weighted<span class="tag">new</span></span>
+          <span class="note">per-row entropy-weighted member averaging</span>
+        </td>
+        <td class="c-group"><span class="grp">ensembling</span></td>
+        <td class="c-f1">0.7316<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:49.77%;width:0.23%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0002<span class="pf">-0.001 / +0.000 / -0.000</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">feat_temporal<span class="tag">new</span></span>
+          <span class="note">per-location across-year deviation + std; adds phenology</span>
+        </td>
+        <td class="c-group"><span class="grp">features</span></td>
+        <td class="c-f1">0.7311<span class="std">±0.011</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:49.20%;width:0.80%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0007<span class="pf">+0.003 / -0.003 / -0.002</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">logitadj_post_tau0.5<span class="tag">new</span></span>
+          <span class="note">logit adjustment (post) tau=0.5, replaces sqrt class weights</span>
+        </td>
+        <td class="c-group"><span class="grp">long_tail</span></td>
+        <td class="c-f1">0.7307<span class="std">±0.007</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:48.75%;width:1.25%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0011<span class="pf">-0.005 / -0.001 / +0.003</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">hetero_dropout_ens<span class="tag">new</span></span>
+          <span class="note">5-member ensemble w/ heterogeneous dropout [0.15, 0.225, 0.3, 0.375, 0.45]; diversity-of-regularization variance reduction</span>
+        </td>
+        <td class="c-group"><span class="grp">hetero_ensemble</span></td>
+        <td class="c-f1">0.7306<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:48.64%;width:1.36%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0012<span class="pf">-0.001 / -0.002 / -0.001</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">sam<span class="tag">new</span></span>
+          <span class="note">Sharpness-Aware Minimization rho=0.05; flat minima for geographic distribution shift</span>
+        </td>
+        <td class="c-group"><span class="grp">flat_minima</span></td>
+        <td class="c-f1">0.7305<span class="std">±0.010</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:48.52%;width:1.48%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0013<span class="pf">-0.002 / -0.001 / -0.002</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">ema<span class="tag">new</span></span>
+          <span class="note">EMA/Polyak weight averaging decay=0.999</span>
+        </td>
+        <td class="c-group"><span class="grp">flat_minima</span></td>
+        <td class="c-f1">0.7304<span class="std">±0.011</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:48.41%;width:1.59%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0014<span class="pf">-0.002 / +0.001 / -0.003</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">class-MoE hard-specialist</span>
+          <span class="note">aux-supervised hard-class expert</span>
+        </td>
+        <td class="c-group"><span class="grp">routing</span></td>
+        <td class="c-f1">0.7300<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:47.95%;width:2.05%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0018<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">rmsnorm<span class="tag">new</span></span>
+          <span class="note">Pre-RMSNorm MLP; batch-stat-free norm (BN memorized folds in stage2)</span>
+        </td>
+        <td class="c-group"><span class="grp">rmsnorm</span></td>
+        <td class="c-f1">0.7294<span class="std">±0.008</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:47.27%;width:2.73%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0024<span class="pf">-0.004 / -0.003 / -0.001</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">class-MoE (4 experts)</span>
+          <span class="note">learned gate over features</span>
+        </td>
+        <td class="c-group"><span class="grp">routing</span></td>
+        <td class="c-f1">0.7294<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:47.27%;width:2.73%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0024<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">feat_proto<span class="tag">new</span></span>
+          <span class="note">distance to train class centroids</span>
+        </td>
+        <td class="c-group"><span class="grp">features</span></td>
+        <td class="c-f1">0.7291<span class="std">±0.009</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:46.93%;width:3.07%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0027<span class="pf">-0.004 / -0.002 / -0.001</span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-tie"></span>
+          <span class="nm">stage5 GLU</span>
+          <span class="note">gated linear unit</span>
+        </td>
+        <td class="c-group"><span class="grp">architecture</span></td>
+        <td class="c-f1">0.7288<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:46.59%;width:3.41%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0030<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-tie">tie</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">stage9 feature attention (SE)</span>
+          <span class="note">squeeze-excite feature gate</span>
+        </td>
+        <td class="c-group"><span class="grp">attention</span></td>
+        <td class="c-f1">0.7283<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:46.02%;width:3.98%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0035<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">stage9 feature attention (softmax)</span>
+          <span class="note">softmax feature gate</span>
+        </td>
+        <td class="c-group"><span class="grp">attention</span></td>
+        <td class="c-f1">0.7281<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:45.80%;width:4.20%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0037<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">spatial-MoE soft e4</span>
+          <span class="note">gate on (lon,lat)</span>
+        </td>
+        <td class="c-group"><span class="grp">routing</span></td>
+        <td class="c-f1">0.7280<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:45.68%;width:4.32%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0038<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">groupdro_env4<span class="tag">new</span></span>
+          <span class="note">GROUPDRO with 4 spatial KMeans environments</span>
+        </td>
+        <td class="c-group"><span class="grp">invariance</span></td>
+        <td class="c-f1">0.7257<span class="std">±0.010</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:43.07%;width:6.93%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0061<span class="pf">-0.005 / -0.007 / -0.006</span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">deepnarrow<span class="tag">new</span></span>
+          <span class="note">4x96 deep-narrow at matched params vs 256,128</span>
+        </td>
+        <td class="c-group"><span class="grp">depth_vs_width</span></td>
+        <td class="c-f1">0.7249<span class="std">±0.007</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:42.16%;width:7.84%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0069<span class="pf">-0.009 / -0.009 / -0.003</span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">spatial-MoE soft e8</span>
+          <span class="note">gate on (lon,lat), 8 experts</span>
+        </td>
+        <td class="c-group"><span class="grp">routing</span></td>
+        <td class="c-f1">0.7221<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:38.98%;width:11.02%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0097<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">stage5 residual-GLU</span>
+          <span class="note">deep residual + GLU</span>
+        </td>
+        <td class="c-group"><span class="grp">architecture</span></td>
+        <td class="c-f1">0.7206<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:37.27%;width:12.73%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0112<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">spatial-MoE hard e4</span>
+          <span class="note">KMeans region routing</span>
+        </td>
+        <td class="c-group"><span class="grp">routing</span></td>
+        <td class="c-f1">0.7166<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:32.73%;width:17.27%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0152<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">stage1 plain MLP</span>
+          <span class="note">no ensemble</span>
+        </td>
+        <td class="c-group"><span class="grp">baseline</span></td>
+        <td class="c-f1">0.7112<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:26.59%;width:23.41%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0206<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">stage2 ResMLP+BN+SWA</span>
+          <span class="note">val 0.965 / test 0.71 — fold memorization</span>
+        </td>
+        <td class="c-group"><span class="grp">architecture</span></td>
+        <td class="c-f1">0.7106<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:25.91%;width:24.09%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0212<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">spatial-MoE hard e8</span>
+          <span class="note">KMeans, 8 regions</span>
+        </td>
+        <td class="c-group"><span class="grp">routing</span></td>
+        <td class="c-f1">0.7092<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:24.32%;width:25.68%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0226<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">irm_env4<span class="tag">new</span></span>
+          <span class="note">IRM with 4 spatial KMeans environments</span>
+        </td>
+        <td class="c-group"><span class="grp">invariance</span></td>
+        <td class="c-f1">0.7079<span class="std">±0.004</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:22.84%;width:27.16%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0239<span class="pf">-0.027 / -0.029 / -0.016</span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">stage5 SNN</span>
+          <span class="note">self-normalizing net</span>
+        </td>
+        <td class="c-group"><span class="grp">architecture</span></td>
+        <td class="c-f1">0.7075<span class="std"></span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:22.39%;width:27.61%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0243<span class="pf"></span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">feat_neighbor_k8<span class="tag">new</span></span>
+          <span class="note">k=8 spatial-neighbour embedding mean/std (PCA16); adds spatial context</span>
+        </td>
+        <td class="c-group"><span class="grp">features</span></td>
+        <td class="c-f1">0.7031<span class="std">±0.013</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:17.39%;width:32.61%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0287<span class="pf">-0.025 / -0.027 / -0.034</span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+      <tr class="is-new">
+        <td class="c-name">
+          <span class="stripe v-loss"></span>
+          <span class="nm">softmoe_e4s8<span class="tag">new</span></span>
+          <span class="note">Soft-MoE (Puigcerver 2023): slot mixtures, every expert sees every row -&gt; cannot region-collapse like stage7</span>
+        </td>
+        <td class="c-group"><span class="grp">soft_moe</span></td>
+        <td class="c-f1">0.6878<span class="std">±0.013</span></td>
+        <td class="c-bar">
+          <div class="track"><span class="zero"></span>
+            <span class="fill neg" style="left:0.00%;width:50.00%"></span>
+          </div>
+        </td>
+        <td class="c-d neg">-0.0440<span class="pf">-0.035 / -0.068 / -0.029</span></td>
+        <td class="c-v"><span class="pill v-loss">LOSS</span></td>
+      </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="method">
+    <div><h3>Why paired per-fold deltas</h3>
+      <p>Fold spread (~0.02) dwarfs the effects we chase (~0.002), so comparing run means
+         mostly compares fold noise. The folds are fixed and deterministic, so each run is
+         scored against the baseline <em>fold by fold</em>.</p></div>
+    <div><h3>What counts as a win</h3>
+      <p>A result must improve <em>every</em> fold and clear +0.003 mean — roughly one
+         seed-noise sigma. Anything inside ±0.003 is recorded as a tie, not a gain.</p></div>
+    <div><h3>What prior work established</h3>
+      <p>Capacity is not the lever: residual nets hit 0.965 validation while test stayed at
+         0.71. The hard vegetation classes are confusion-bound — learning curves flatten by
+         70% of the data.</p></div>
+  </div>
+
+  <div class="panel finding">
+    <div class="panel-h">
+      <h2>What this loop found: test accuracy is pinned, whatever validation does</h2>
+      <span class="hint">validation spans 22 points · test spans 3</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Experiment</th><th>Validation F1</th><th>Test F1</th>
+          <th>Gap</th><th>What it did to region information</th></tr></thead>
+        <tbody>
+          <tr><td class="c-name"><span class="nm">feat_temporal</span></td>
+            <td class="c-f1">0.942</td><td class="c-f1">0.731</td><td class="c-f1">0.211</td>
+            <td class="note-cell">added per-location phenology</td></tr>
+          <tr><td class="c-name"><span class="nm">feat_neighbor</span></td>
+            <td class="c-f1">0.864</td><td class="c-f1">0.703</td><td class="c-f1">0.161</td>
+            <td class="note-cell">added spatial context</td></tr>
+          <tr><td class="c-name"><span class="nm">baseline MLP</span></td>
+            <td class="c-f1">0.790</td><td class="c-f1">0.732</td><td class="c-f1">0.058</td>
+            <td class="note-cell">—</td></tr>
+          <tr><td class="c-name"><span class="nm">SAM</span></td>
+            <td class="c-f1">0.785</td><td class="c-f1">0.731</td><td class="c-f1">0.054</td>
+            <td class="note-cell">sought flat minima</td></tr>
+          <tr><td class="c-name"><span class="nm">Group-DRO</span></td>
+            <td class="c-f1">0.781</td><td class="c-f1">0.726</td><td class="c-f1">0.055</td>
+            <td class="note-cell">optimized the worst region</td></tr>
+          <tr><td class="c-name"><span class="nm">IRM</span></td>
+            <td class="c-f1">0.718</td><td class="c-f1">0.708</td><td class="c-f1">0.010</td>
+            <td class="note-cell">discarded region-varying features</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel finding">
+    <div class="panel-h">
+      <h2>Why ensembling was the only lever — and why it stops at five</h2>
+      <span class="hint">fold 0 · 15 members · the mechanism behind the one thing that worked</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Ensemble size</th><th>Macro-F1</th><th>Gain over previous</th></tr></thead>
+        <tbody>
+          <tr><td class="c-name"><span class="nm">1 member</span></td>
+            <td class="c-f1">0.7324</td><td class="note-cell">—</td></tr>
+          <tr><td class="c-name"><span class="nm">3 members</span></td>
+            <td class="c-f1">0.7363</td><td class="note-cell">+0.0039</td></tr>
+          <tr><td class="c-name"><span class="nm">5 members</span></td>
+            <td class="c-f1">0.7364</td><td class="note-cell">+0.0001 — saturated here</td></tr>
+          <tr><td class="c-name"><span class="nm">15 members</span></td>
+            <td class="c-f1">0.7373</td><td class="note-cell">+0.0009 across ten more members</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="method">
+    <div><h3>The oracle bound closes the question</h3>
+      <p>On fold 0 the 15-member ensemble is 78.7% accurate. If an oracle picked the right
+         member for every row it would reach 85.1% — <strong>+6.3 points of headroom that no
+         routing scheme can reach</strong>. Members disagree on just 5.9% of rows, and their
+         disagreement does not track correctness.</p></div>
+    <div><h3>Diversity contributes nothing</h3>
+      <p>Fifteen architecturally diverse members (MLP + SwiGLU + RMSNorm + SAM + EMA) score
+         0.7322; fifteen identical-architecture seeds score 0.7321. Same size, same budget —
+         a 0.0001 difference. Only member count ever mattered, and only up to five.</p></div>
+    <div><h3>The ceiling is information, not modelling</h3>
+      <p>Validation ranges from 0.72 to 0.94 across these runs; test never leaves
+         0.70–0.73. Everything added gets absorbed into fitting the training regions and
+         none of it crosses the fold boundary.</p></div>
+    <div><h3>Both directions lose</h3>
+      <p>IRM <em>removed</em> region-specific features and lost 0.024. Neighbour features
+         <em>added</em> them and lost 0.029. Those features are not shortcuts — they are the
+         signal, which is why held-out geography stays hard.</p></div>
+    <div><h3>Why lidar was different</h3>
+      <p>Elevation and canopy height describe what is physically present, and physics holds
+         across Norway. Neighbour statistics describe what is nearby <em>here</em>. Only
+         transferable physical measurements have ever moved this number.</p></div>
+  </div>
+
+  <footer>Generated 2026-07-17 13:08 UTC · <code>DNN/research/build_report.py</code></footer>
+</div>

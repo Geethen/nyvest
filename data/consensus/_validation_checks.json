@@ -1,0 +1,29 @@
+{
+  "cell_id": {
+    "n": 500,
+    "n_match": 500,
+    "all_match": true
+  },
+  "lidar": {
+    "n_sampled": 500,
+    "n_matched_in_ref": 476,
+    "max_abs_delta": {
+      "elevation": 0.0,
+      "tch": 0.0,
+      "slope": 0.0,
+      "aspect_sin": 0.0,
+      "aspect_cos": 0.0,
+      "tri": 0.0
+    }
+  },
+  "aef_scaling": {
+    "2020": {
+      "n": 300,
+      "max_abs_delta": 0.0
+    },
+    "2024": {
+      "n": 295,
+      "max_abs_delta": 0.0
+    }
+  }
+}

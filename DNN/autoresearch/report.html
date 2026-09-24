@@ -1,0 +1,1770 @@
+<title>Weak-class autoresearch — nyvest land-cover DNN</title>
+<style>
+:root {
+  --paper:#e9ebe6; --card:#f3f4f0; --ink:#161c1a; --slate:#5c6a66;
+  --rule:#ccd1cb; --gold:#8a5f10; --gold-soft:#c9a227;
+  --moss:#3f6b46; --rust:#9c4020; --shadow:rgba(22,28,26,.07);
+  --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark) {
+  :root {
+    --paper:#121614; --card:#1a201e; --ink:#e4e8e3; --slate:#94a29d;
+    --rule:#2c3532; --gold:#d3a53c; --gold-soft:#8a6a1c;
+    --moss:#7bb083; --rust:#d6795a; --shadow:rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#121614; --card:#1a201e; --ink:#e4e8e3; --slate:#94a29d;
+  --rule:#2c3532; --gold:#d3a53c; --gold-soft:#8a6a1c;
+  --moss:#7bb083; --rust:#d6795a; --shadow:rgba(0,0,0,.4);
+}
+:root[data-theme="light"] {
+  --paper:#e9ebe6; --card:#f3f4f0; --ink:#161c1a; --slate:#5c6a66;
+  --rule:#ccd1cb; --gold:#8a5f10; --gold-soft:#c9a227;
+  --moss:#3f6b46; --rust:#9c4020; --shadow:rgba(22,28,26,.07);
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--serif); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:1180px; margin:0 auto; padding:clamp(1.5rem,4vw,3.5rem) clamp(1rem,4vw,2.5rem) 5rem; }
+a { color:inherit; }
+a:focus-visible, summary:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+
+header.masthead { border-bottom:2px solid var(--ink); padding-bottom:1.4rem; }
+.eyebrow {
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--slate); margin:0 0 .9rem;
+  display:flex; gap:1rem; flex-wrap:wrap; align-items:center;
+}
+.dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--gold); display:inline-block; }
+.dot.idle { background:var(--slate); }
+h1 {
+  font-size:clamp(1.9rem,4.5vw,3.1rem); line-height:1.08; margin:0 0 .6rem;
+  font-weight:600; letter-spacing:-.02em; text-wrap:balance; max-width:20ch;
+}
+.dek { margin:0; max-width:64ch; color:var(--slate); font-size:1.05rem; }
+
+.tiles { display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+  grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); margin:2.2rem 0 3rem; }
+.tile { background:var(--card); padding:1rem 1.1rem; display:flex; flex-direction:column; gap:.15rem; }
+.tile .lab { font-family:var(--mono); font-size:.66rem; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--slate); }
+.tile .val { font-family:var(--mono); font-size:1.75rem; font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em; }
+.tile .val em { font-size:1rem; font-style:normal; color:var(--slate); }
+.tile .sub { font-size:.8rem; color:var(--slate); line-height:1.35; }
+
+h2 { font-size:1.35rem; font-weight:600; letter-spacing:-.01em; margin:3rem 0 .35rem;
+  padding-top:1.6rem; border-top:1px solid var(--rule); }
+h2:first-of-type { border-top:0; padding-top:0; }
+.note { margin:.2rem 0 1.4rem; color:var(--slate); font-size:.93rem; max-width:70ch; }
+.note code { font-family:var(--mono); font-size:.85em; background:var(--card);
+  padding:.05em .35em; border:1px solid var(--rule); }
+
+.scroll { overflow-x:auto; border:1px solid var(--rule); background:var(--card); }
+table { border-collapse:collapse; width:100%; font-size:.9rem; }
+thead th { font-family:var(--mono); font-size:.65rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--slate); font-weight:400; text-align:left;
+  padding:.7rem .8rem; border-bottom:1px solid var(--rule); white-space:nowrap; }
+tbody td { padding:.55rem .8rem; border-bottom:1px solid var(--rule); vertical-align:middle; }
+tbody tr:last-child td { border-bottom:0; }
+tbody tr:hover { background:color-mix(in srgb, var(--gold) 7%, transparent); }
+tr.base { background:color-mix(in srgb, var(--gold) 11%, transparent); }
+tr.base .nm a { font-weight:600; }
+.nm { font-family:var(--mono); font-size:.82rem; }
+.nm a { text-decoration:none; border-bottom:1px solid var(--rule); }
+.nm a:hover { border-color:var(--gold); }
+td.tier { font-size:.78rem; color:var(--slate); }
+.num { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right;
+  white-space:nowrap; }
+.num em { font-style:normal; color:var(--slate); font-size:.78em; }
+.delta.gain { color:var(--moss); font-weight:600; }
+.delta.drop { color:var(--rust); }
+.delta.flat { color:var(--slate); }
+.ctrl { color:var(--slate); font-size:.82rem; }
+
+.folds { display:inline-flex; gap:3px; }
+.sq { width:12px; height:12px; display:block; border:1px solid var(--rule); }
+.sq.pos { background:var(--moss); border-color:var(--moss); }
+.sq.neg { background:var(--rust); border-color:var(--rust); }
+.sq.nil { background:var(--rule); }
+
+.tradeoff { position:relative; display:grid; width:40px; height:26px;
+  grid-template-columns:1fr 1fr; grid-template-rows:13px 13px; column-gap:4px; }
+.tradeoff .axis { position:absolute; left:0; right:0; top:13px; height:1px;
+  background:var(--rule); }
+.tradeoff .bar { width:100%; height:var(--h); min-height:1px; }
+.tradeoff .weak { grid-column:1; }
+.tradeoff .strong { grid-column:2; }
+.tradeoff .bar.up { grid-row:1; align-self:end; }
+.tradeoff .bar.down { grid-row:2; align-self:start; }
+.tradeoff .weak { background:var(--moss); }
+.tradeoff .strong { background:var(--gold-soft); }
+.tradeoff .bar.down.weak { background:var(--rust); }
+.tradeoff .bar.down.strong { background:var(--rust); }
+.tradeoff.empty { opacity:.25; }
+
+/* val-vs-test dumbbell */
+td.gapcell { width:32%; min-width:150px; }
+.gaptrack { position:relative; display:block; height:12px; }
+.gaptrack::before { content:""; position:absolute; left:0; right:0; top:5.5px;
+  height:1px; background:var(--rule); }
+.gaptrack .seg { position:absolute; top:5px; height:2px; background:var(--gold-soft); }
+.gaptrack .pt { position:absolute; top:2px; width:8px; height:8px; margin-left:-4px;
+  border-radius:50%; }
+.gaptrack .pt.val { background:var(--paper); border:1.5px solid var(--slate); }
+.gaptrack .pt.test { background:var(--moss); }
+
+/* floor panel: every model on one shared macro-F1 axis */
+table.floor td.nm span, table.cost td.nm span { display:block; font-family:var(--serif);
+  font-style:italic; font-size:.78rem; color:var(--slate); margin-top:.15rem; }
+table.floor tr.base td { background:color-mix(in srgb, var(--gold-soft) 9%, transparent); }
+td.axcell { width:40%; min-width:170px; }
+.axtrack { position:relative; display:block; height:14px; }
+.axtrack::before { content:""; position:absolute; left:0; right:0; top:6.5px;
+  height:1px; background:var(--rule); }
+.axtrack .tick { position:absolute; top:0; width:1px; height:14px;
+  background:var(--gold); opacity:.55; }
+.axtrack .dot { position:absolute; top:2.5px; width:9px; height:9px; margin-left:-4.5px;
+  border-radius:50%; background:var(--slate);
+  box-shadow:0 0 0 2px var(--card); }
+.axtrack .dot.base { background:var(--gold); }
+.axtrack .dot.best { background:var(--moss); }
+/* the oracle is not achievable — hollow, so it never reads as a result */
+.axtrack .dot.bound { background:var(--card); border:1.5px dashed var(--slate); }
+
+/* inference cost: minutes per 1.3B px against the pipeline's read ceiling */
+td.costcell { width:34%; min-width:190px; }
+.costtrack { position:relative; display:block; height:18px; }
+.costtrack .cb { position:absolute; left:0; top:5px; height:8px; border-radius:0 4px 4px 0;
+  background:var(--slate); opacity:.55; }
+.costtrack .cb.base { background:var(--gold); opacity:.75; }
+.costtrack .cb.over { background:var(--rust); opacity:.7; }
+.costtrack .io { position:absolute; top:0; width:0; height:18px;
+  border-left:1.5px dashed var(--moss); }
+table.cost td.num em { display:block; font-family:var(--mono); font-size:.6rem;
+  font-style:normal; color:var(--slate); }
+table.cost th.sub, table.cost td.sub { color:var(--slate); }
+.clegend { font-family:var(--mono); font-size:.66rem; color:var(--slate);
+  margin:.5rem 0 0; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+.clegend i.sw { display:inline-block; width:14px; height:8px; border-radius:0 3px 3px 0;
+  margin-left:.9rem; }
+.clegend i.sw:first-child { margin-left:0; }
+.clegend i.sw.bar { background:var(--slate); opacity:.55; }
+.clegend i.sw.over { background:var(--rust); opacity:.7; }
+.clegend i.sw.io { width:0; height:13px; border-radius:0;
+  border-left:1.5px dashed var(--moss); }
+.clegend span { flex-basis:100%; font-family:var(--serif); font-style:italic;
+  font-size:.8rem; margin-top:.4rem; }
+table.cost tr.base td { background:color-mix(in srgb, var(--gold-soft) 9%, transparent); }
+
+/* label-budget panel: one small multiple per adaptation strategy, shared scale */
+.lpanel { display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+  grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); margin:1.2rem 0; }
+.lgrp { background:var(--card); padding:1rem 1.1rem 1.2rem; }
+.lgrp h4 { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--gold); margin:0 0 1rem; font-weight:600; }
+.lbars { display:flex; align-items:center; gap:.55rem; }
+.lb { flex:1; display:flex; flex-direction:column; align-items:center; }
+.lbw { height:96px; width:100%; display:grid; grid-template-rows:1fr 1fr;
+  position:relative; }
+.lbw::after { content:""; position:absolute; left:0; right:0; top:48px; height:1px;
+  background:var(--rule); }
+.lbw i { width:100%; min-height:1px; }
+.lbw i.up { grid-row:1; align-self:end; background:var(--moss); }
+.lbw i.dn { grid-row:2; align-self:start; background:var(--rust); }
+.lv { font-family:var(--mono); font-size:.6rem; color:var(--slate); margin-top:.4rem; }
+.lx { font-family:var(--mono); font-size:.6rem; color:var(--slate); opacity:.7; }
+
+.chip { font-family:var(--mono); font-size:.62rem; letter-spacing:.1em;
+  text-transform:uppercase; padding:.22em .5em; border:1px solid currentColor;
+  white-space:nowrap; }
+.chip.win { color:var(--moss); }
+.chip.loss { color:var(--rust); }
+.chip.tie { color:var(--slate); }
+.chip.ref { color:var(--gold); }
+.chip.bound { color:var(--slate); border-style:dashed; }
+.chip.split { color:var(--gold); border-style:dashed; }
+.nt { font-family:var(--mono); font-size:.6rem; letter-spacing:.09em;
+  color:var(--gold); text-transform:uppercase; }
+.flag { font-family:var(--mono); font-size:.58rem; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--slate); border:1px dotted var(--rule);
+  padding:.1em .35em; margin-left:.4rem; white-space:nowrap; }
+
+.findings { display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+  grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); }
+.finding { background:var(--card); padding:1.1rem 1.2rem 1.2rem;
+  border-top:3px solid var(--gold); }
+.finding.method { border-top-color:var(--rust); }
+.finding h4 { margin:0 0 .5rem; font-size:1.02rem; font-weight:600;
+  letter-spacing:-.01em; text-wrap:balance; }
+.finding p { margin:0; font-size:.9rem; color:var(--slate); }
+
+.matrix th.cls { text-align:left; font-family:var(--serif); font-weight:400;
+  white-space:nowrap; padding:.5rem .8rem; border-bottom:1px solid var(--rule); }
+.matrix th.cls b { font-weight:600; }
+.matrix th.cls span { font-family:var(--mono); font-size:.7rem; color:var(--slate);
+  margin-left:.45rem; }
+.matrix th.cls.weak { border-left:3px solid var(--rust); }
+.matrix th.cls.strong { border-left:3px solid var(--rule); }
+.matrix td.base { font-weight:600; }
+.matrix th.colhead { font-family:var(--mono); font-size:.62rem; text-align:right;
+  max-width:78px; white-space:normal; word-break:break-word; }
+.cell { font-family:var(--mono); font-size:.74rem; text-align:right;
+  font-variant-numeric:tabular-nums; }
+.cell.p { background:color-mix(in srgb, var(--moss) calc(var(--a)*55%), transparent); }
+.cell.n { background:color-mix(in srgb, var(--rust) calc(var(--a)*55%), transparent); }
+.cell.z { color:var(--slate); }
+/* the classical-floor columns: same measure, same scale, own group */
+.matrix .edge { border-left:2px solid var(--ink); }
+.matrix th.colhead.flr span { color:var(--gold); }
+.matrix tr.grp td { border-bottom:0; padding:.45rem .8rem .1rem; }
+.matrix td.gl { font-family:var(--mono); font-size:.6rem; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--slate); text-align:left; white-space:nowrap; }
+
+section.tier-group h3 { font-family:var(--mono); font-size:.72rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--gold); margin:2.2rem 0 .3rem; }
+.blurb { margin:0 0 1rem; color:var(--slate); font-size:.9rem; max-width:72ch; }
+.cards { display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+  grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); }
+.card { background:var(--card); padding:1rem 1.1rem 1.1rem; }
+.card header { display:flex; align-items:center; justify-content:space-between;
+  gap:.6rem; margin-bottom:.5rem; }
+.card h4 { font-family:var(--mono); font-size:.86rem; margin:0; font-weight:600; }
+.card .idea { margin:0 0 .6rem; font-size:.93rem; }
+.card .hyp { margin:0 0 .55rem; font-size:.88rem; color:var(--slate); }
+.card .hyp span { display:block; font-family:var(--mono); font-size:.6rem;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--gold);
+  margin-bottom:.15rem; }
+.card .prov { margin:0 0 .55rem; font-size:.8rem; color:var(--slate); font-style:italic; }
+.card .res { margin:0; font-family:var(--mono); font-size:.74rem;
+  font-variant-numeric:tabular-nums; color:var(--slate);
+  border-top:1px solid var(--rule); padding-top:.5rem; }
+
+ul.prior { list-style:none; margin:0; padding:0; display:grid; gap:1px;
+  background:var(--rule); border:1px solid var(--rule); }
+ul.prior li { background:var(--card); padding:.75rem 1rem; display:grid;
+  grid-template-columns:minmax(140px,190px) 1fr; gap:1rem; font-size:.88rem; }
+ul.prior b { font-family:var(--mono); font-size:.72rem; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--gold); font-weight:400; }
+ul.prior span { color:var(--slate); }
+@media (max-width:600px) { ul.prior li { grid-template-columns:1fr; gap:.2rem; } }
+
+footer { margin-top:3.5rem; padding-top:1.2rem; border-top:1px solid var(--rule);
+  font-family:var(--mono); font-size:.72rem; color:var(--slate);
+  display:flex; gap:1.2rem; flex-wrap:wrap; }
+footer a { color:var(--gold); }
+</style>
+
+<div class="wrap">
+<header class="masthead">
+  <p class="eyebrow"><span><span class="dot idle"></span> loop idle</span>
+     <span>updated 2026-08-06 18:07</span>
+     <span>69 trials scored</span></p>
+  <h1>Lifting the weak classes without paying for it</h1>
+  <p class="dek">An autonomous search for macro-F1 above the deployed land-cover
+  DNN, judged on a stricter bar than usual: a mechanism only counts if it gains on
+  every spatial fold <em>and</em> does not buy weak-class accuracy out of the
+  strong classes. 69 mechanisms have now been scored against it — margins,
+  priors, hierarchy, oversampling, distillation, modern optimizers and
+  activations, new architectures, and transductive adaptation to the target
+  region. None wins, and the closest thing to one halved when re-run on a fresh
+  seed.</p>
+</header>
+
+<div class="tiles"><div class="tile"><span class="lab">deployed baseline</span><span class="val">0.7414</span><span class="sub">macro-F1, 3-fold spatial CV</span></div><div class="tile"><span class="lab">trials scored</span><span class="val">69</span><span class="sub">one mechanism each, plus the sweeps and combos they generated</span></div><div class="tile"><span class="lab">best delta so far</span><span class="val">+0.0040</span><span class="sub">moe_shared__n_experts8_top_k2</span></div><div class="tile"><span class="lab">wins</span><span class="val">0</span><span class="sub">all folds positive AND Δ&gt;0.003 — and the best result halved on a fresh seed</span></div><div class="tile"><span class="lab">decision-rule headroom</span><span class="val">+0.0022</span><span class="sub">upper bound if the rule were fitted on the test fold</span></div><div class="tile"><span class="lab">linear-probe floor</span><span class="val">0.7040</span><span class="sub">the deep net is worth +0.0373 over it</span></div></div>
+
+<h2>Leaderboard</h2>
+<p class="note">Sorted by paired delta against the baseline's own per-fold scores.
+Fold spread (~0.02) dwarfs the effects being chased (~0.003), so run means are
+meaningless — the three squares are the per-fold signs, and a
+<code>WIN</code> needs all three green plus Δ&gt;0.003. The bar to the right is the
+tradeoff: weak-class mean gain above the axis, worst strong-class change below.
+Gold below the axis is a class being paid out of. Trials that hold their inner val
+out by whole cells pay a 0.0042 tax for that alone, so they carry a second delta
+against the matched <code>baseline_gval</code> control — that column is the honest
+one for them.</p>
+<div class="scroll"><table>
+<thead><tr><th>trial</th><th>tier</th><th class="num">macro-F1</th>
+<th class="num">Δ paired</th><th class="num">Δ vs control</th><th>folds</th><th>weak / strong</th><th>verdict</th></tr></thead>
+<tbody>
+<tr class="base">
+  <td class="nm"><a href="#baseline">baseline</a>
+      </td>
+  <td class="tier">reference</td>
+  <td class="num f1">0.7414<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta ">—</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq nil" title="fold 0: 0.7473"></i><i class="sq nil" title="fold 1: 0.7459"></i><i class="sq nil" title="fold 2: 0.7309"></i></span></td>
+  <td><span class="tradeoff empty"></span></td>
+  <td class="vd"><span class="chip ref">baseline</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#bound_region_oracle">bound_region_oracle</a>
+      <span class="flag bound">not a result</span></td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.8144<em>&thinsp;&plusmn;0.004</em></td>
+  <td class="num delta gain">+0.0730</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.8173 (delta +0.0700)"></i><i class="sq pos" title="fold 1: 0.8175 (delta +0.0716)"></i><i class="sq pos" title="fold 2: 0.8084 (delta +0.0775)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0965, worst strong class +0.0082"><i class="bar weak up" style="--h:100%"></i><i class="axis"></i><i class="bar strong up" style="--h:27%"></i></span></td>
+  <td class="vd"><span class="chip bound">upper-bound</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_shared__n_experts8_top_k2">moe_shared__n_experts8_top_k2</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7453<em>&thinsp;&plusmn;0.002</em></td>
+  <td class="num delta gain">+0.0040</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7470 (delta -0.0003)"></i><i class="sq pos" title="fold 1: 0.7463 (delta +0.0004)"></i><i class="sq pos" title="fold 2: 0.7426 (delta +0.0117)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0006, worst strong class -0.0014"><i class="bar weak up" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:5%"></i></span></td>
+  <td class="vd"><span class="chip split">split</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_shared__n_experts16_top_k4">moe_shared__n_experts16_top_k4</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7447<em>&thinsp;&plusmn;0.002</em></td>
+  <td class="num delta gain">+0.0033</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7463 (delta -0.0010)"></i><i class="sq neg" title="fold 1: 0.7453 (delta -0.0006)"></i><i class="sq pos" title="fold 2: 0.7424 (delta +0.0115)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0015, worst strong class -0.0030"><i class="bar weak down" style="--h:5%"></i><i class="axis"></i><i class="bar strong down" style="--h:10%"></i></span></td>
+  <td class="vd"><span class="chip split">split</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_lossfree__bias_gamma0p01">moe_lossfree__bias_gamma0p01</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7443<em>&thinsp;&plusmn;0.004</em></td>
+  <td class="num delta flat">+0.0029</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7470 (delta -0.0003)"></i><i class="sq pos" title="fold 1: 0.7467 (delta +0.0008)"></i><i class="sq pos" title="fold 2: 0.7391 (delta +0.0082)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0013, worst strong class -0.0010"><i class="bar weak up" style="--h:4%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#combo_opt_schedulefree_act_xielu">combo_opt_schedulefree_act_xielu</a>
+      </td>
+  <td class="tier">combo</td>
+  <td class="num f1">0.7442<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0028</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7461 (delta -0.0012)"></i><i class="sq pos" title="fold 1: 0.7487 (delta +0.0028)"></i><i class="sq pos" title="fold 2: 0.7378 (delta +0.0069)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0002, worst strong class -0.0000"><i class="bar weak up" style="--h:1%"></i><i class="axis"></i><i class="bar strong down" style="--h:0%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#mod_depth">mod_depth</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7441<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0028</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7488 (delta +0.0015)"></i><i class="sq pos" title="fold 1: 0.7481 (delta +0.0022)"></i><i class="sq pos" title="fold 2: 0.7354 (delta +0.0045)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0021, worst strong class -0.0013"><i class="bar weak up" style="--h:7%"></i><i class="axis"></i><i class="bar strong down" style="--h:4%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_echoice">moe_echoice</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7439<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0026</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7471 (delta -0.0002)"></i><i class="sq pos" title="fold 1: 0.7473 (delta +0.0014)"></i><i class="sq pos" title="fold 2: 0.7374 (delta +0.0065)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0005, worst strong class -0.0007"><i class="bar weak up" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:2%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_shared__zero_init0">moe_shared__zero_init0</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7438<em>&thinsp;&plusmn;0.004</em></td>
+  <td class="num delta flat">+0.0024</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7458 (delta -0.0015)"></i><i class="sq pos" title="fold 1: 0.7472 (delta +0.0013)"></i><i class="sq pos" title="fold 2: 0.7384 (delta +0.0075)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0016, worst strong class -0.0011"><i class="bar weak up" style="--h:5%"></i><i class="axis"></i><i class="bar strong down" style="--h:4%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_shared">moe_shared</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7437<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0023</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7475 (delta +0.0002)"></i><i class="sq pos" title="fold 1: 0.7473 (delta +0.0014)"></i><i class="sq pos" title="fold 2: 0.7362 (delta +0.0053)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0020, worst strong class -0.0018"><i class="bar weak up" style="--h:7%"></i><i class="axis"></i><i class="bar strong down" style="--h:6%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#combo_opt_schedulefree_hier_c2f">combo_opt_schedulefree_hier_c2f</a>
+      </td>
+  <td class="tier">combo</td>
+  <td class="num f1">0.7435<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0022</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7467 (delta -0.0006)"></i><i class="sq pos" title="fold 1: 0.7479 (delta +0.0020)"></i><i class="sq pos" title="fold 2: 0.7360 (delta +0.0051)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0012, worst strong class +0.0004"><i class="bar weak up" style="--h:4%"></i><i class="axis"></i><i class="bar strong up" style="--h:1%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_oracle_offsets">dr_oracle_offsets</a>
+      <span class="flag bound">not a result</span></td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7436<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0022</td>
+  <td class="num ctrl"><span title="baseline_gval plain argmax 0.7372">+0.0064</span></td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7477 (delta +0.0004)"></i><i class="sq pos" title="fold 1: 0.7486 (delta +0.0027)"></i><i class="sq pos" title="fold 2: 0.7345 (delta +0.0036)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0038, worst strong class -0.0049"><i class="bar weak up" style="--h:13%"></i><i class="axis"></i><i class="bar strong down" style="--h:16%"></i></span></td>
+  <td class="vd"><span class="chip bound">upper-bound</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_lossfree">moe_lossfree</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7434<em>&thinsp;&plusmn;0.003</em></td>
+  <td class="num delta flat">+0.0020</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7466 (delta -0.0007)"></i><i class="sq neg" title="fold 1: 0.7448 (delta -0.0011)"></i><i class="sq pos" title="fold 2: 0.7387 (delta +0.0078)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0003, worst strong class -0.0012"><i class="bar weak up" style="--h:1%"></i><i class="axis"></i><i class="bar strong down" style="--h:4%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_auxbal__aux_lam0p001">moe_auxbal__aux_lam0p001</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7432<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0018</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7477 (delta +0.0004)"></i><i class="sq pos" title="fold 1: 0.7466 (delta +0.0007)"></i><i class="sq pos" title="fold 2: 0.7353 (delta +0.0044)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0008, worst strong class -0.0006"><i class="bar weak up" style="--h:3%"></i><i class="axis"></i><i class="bar strong down" style="--h:2%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#mod_depth__capacity0p25">mod_depth__capacity0p25</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7431<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0017</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7471 (delta -0.0002)"></i><i class="sq pos" title="fold 1: 0.7469 (delta +0.0010)"></i><i class="sq pos" title="fold 2: 0.7352 (delta +0.0043)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0006, worst strong class -0.0008"><i class="bar weak up" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#mod_depth__capacity0p75">mod_depth__capacity0p75</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7430<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0017</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7480 (delta +0.0007)"></i><i class="sq pos" title="fold 1: 0.7469 (delta +0.0010)"></i><i class="sq pos" title="fold 2: 0.7342 (delta +0.0033)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0019, worst strong class -0.0021"><i class="bar weak up" style="--h:6%"></i><i class="axis"></i><i class="bar strong down" style="--h:7%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_shared__expert_h1128_expert_h264">moe_shared__expert_h1128_expert_h264</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7430<em>&thinsp;&plusmn;0.004</em></td>
+  <td class="num delta flat">+0.0016</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7455 (delta -0.0018)"></i><i class="sq pos" title="fold 1: 0.7464 (delta +0.0005)"></i><i class="sq pos" title="fold 2: 0.7370 (delta +0.0061)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0004, worst strong class -0.0037"><i class="bar weak down" style="--h:1%"></i><i class="axis"></i><i class="bar strong down" style="--h:12%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#replication_seed1_moe_shared">replication_seed1_moe_shared</a>
+      </td>
+  <td class="tier">replication</td>
+  <td class="num f1">0.7428<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0016</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7469 (delta +0.0004)"></i><i class="sq pos" title="fold 1: 0.7467 (delta +0.0010)"></i><i class="sq pos" title="fold 2: 0.7346 (delta +0.0034)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0001, worst strong class -0.0008"><i class="bar weak up" style="--h:0%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#act_xielu">act_xielu</a>
+      </td>
+  <td class="tier">activation</td>
+  <td class="num f1">0.7429<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0015</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7472 (delta -0.0001)"></i><i class="sq pos" title="fold 1: 0.7470 (delta +0.0011)"></i><i class="sq pos" title="fold 2: 0.7344 (delta +0.0035)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0013, worst strong class -0.0008"><i class="bar weak up" style="--h:4%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#opt_schedulefree">opt_schedulefree</a>
+      </td>
+  <td class="tier">optimizer</td>
+  <td class="num f1">0.7428<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0015</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7472 (delta -0.0001)"></i><i class="sq pos" title="fold 1: 0.7473 (delta +0.0014)"></i><i class="sq pos" title="fold 2: 0.7341 (delta +0.0032)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0017, worst strong class +0.0004"><i class="bar weak up" style="--h:6%"></i><i class="axis"></i><i class="bar strong up" style="--h:1%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_geo">moe_geo</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7428<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0014</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7473 (delta -0.0000)"></i><i class="sq pos" title="fold 1: 0.7489 (delta +0.0030)"></i><i class="sq pos" title="fold 2: 0.7322 (delta +0.0013)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0019, worst strong class -0.0008"><i class="bar weak up" style="--h:6%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_auxbal">moe_auxbal</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7427<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0013</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7466 (delta -0.0007)"></i><i class="sq pos" title="fold 1: 0.7460 (delta +0.0001)"></i><i class="sq pos" title="fold 2: 0.7355 (delta +0.0046)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0006, worst strong class -0.0006"><i class="bar weak down" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:2%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#replication_seed1_best_combo">replication_seed1_best_combo</a>
+      </td>
+  <td class="tier">replication</td>
+  <td class="num f1">0.7425<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0013</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7464 (delta -0.0001)"></i><i class="sq pos" title="fold 1: 0.7469 (delta +0.0012)"></i><i class="sq pos" title="fold 2: 0.7340 (delta +0.0028)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0001, worst strong class -0.0009"><i class="bar weak down" style="--h:0%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#replication_seed1_mod_depth">replication_seed1_mod_depth</a>
+      </td>
+  <td class="tier">replication</td>
+  <td class="num f1">0.7424<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0013</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7483 (delta +0.0018)"></i><i class="sq pos" title="fold 1: 0.7458 (delta +0.0001)"></i><i class="sq pos" title="fold 2: 0.7331 (delta +0.0019)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0011, worst strong class -0.0021"><i class="bar weak up" style="--h:4%"></i><i class="axis"></i><i class="bar strong down" style="--h:7%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#combo_act_xielu_tta_cbst">combo_act_xielu_tta_cbst</a>
+      </td>
+  <td class="tier">combo</td>
+  <td class="num f1">0.7425<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7473 (delta -0.0000)"></i><i class="sq pos" title="fold 1: 0.7474 (delta +0.0015)"></i><i class="sq pos" title="fold 2: 0.7328 (delta +0.0019)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0026, worst strong class -0.0008"><i class="bar weak up" style="--h:9%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#combo_hier_c2f_tta_cbst">combo_hier_c2f_tta_cbst</a>
+      </td>
+  <td class="tier">combo</td>
+  <td class="num f1">0.7425<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7473 (delta -0.0000)"></i><i class="sq pos" title="fold 1: 0.7474 (delta +0.0015)"></i><i class="sq pos" title="fold 2: 0.7328 (delta +0.0019)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0026, worst strong class -0.0008"><i class="bar weak up" style="--h:9%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#combo_opt_schedulefree_tta_cbst">combo_opt_schedulefree_tta_cbst</a>
+      </td>
+  <td class="tier">combo</td>
+  <td class="num f1">0.7425<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7473 (delta -0.0000)"></i><i class="sq pos" title="fold 1: 0.7474 (delta +0.0015)"></i><i class="sq pos" title="fold 2: 0.7328 (delta +0.0019)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0026, worst strong class -0.0008"><i class="bar weak up" style="--h:9%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#hier_c2f">hier_c2f</a>
+      </td>
+  <td class="tier">hierarchy</td>
+  <td class="num f1">0.7425<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7457 (delta -0.0016)"></i><i class="sq neg" title="fold 1: 0.7458 (delta -0.0001)"></i><i class="sq pos" title="fold 2: 0.7359 (delta +0.0050)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0010, worst strong class -0.0002"><i class="bar weak down" style="--h:3%"></i><i class="axis"></i><i class="bar strong down" style="--h:1%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#tta_cbst">tta_cbst</a>
+      <span class="flag">transductive</span></td>
+  <td class="tier">transductive</td>
+  <td class="num f1">0.7425<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7473 (delta -0.0000)"></i><i class="sq pos" title="fold 1: 0.7474 (delta +0.0015)"></i><i class="sq pos" title="fold 2: 0.7328 (delta +0.0019)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0026, worst strong class -0.0008"><i class="bar weak up" style="--h:9%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#ctrl_capacity">ctrl_capacity</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7421<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0007</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7469 (delta -0.0004)"></i><i class="sq pos" title="fold 1: 0.7470 (delta +0.0011)"></i><i class="sq pos" title="fold 2: 0.7324 (delta +0.0015)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0014, worst strong class -0.0011"><i class="bar weak up" style="--h:5%"></i><i class="axis"></i><i class="bar strong down" style="--h:4%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#smote_weak">smote_weak</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.7420<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0006</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7463 (delta -0.0010)"></i><i class="sq pos" title="fold 1: 0.7461 (delta +0.0002)"></i><i class="sq pos" title="fold 2: 0.7334 (delta +0.0025)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0029, worst strong class -0.0035"><i class="bar weak up" style="--h:10%"></i><i class="axis"></i><i class="bar strong down" style="--h:12%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#act_gelu">act_gelu</a>
+      </td>
+  <td class="tier">activation</td>
+  <td class="num f1">0.7418<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0004</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7459 (delta -0.0014)"></i><i class="sq pos" title="fold 1: 0.7466 (delta +0.0007)"></i><i class="sq pos" title="fold 2: 0.7329 (delta +0.0020)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0003, worst strong class -0.0022"><i class="bar weak up" style="--h:1%"></i><i class="axis"></i><i class="bar strong down" style="--h:7%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#softf1">softf1</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.7418<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0004</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7474 (delta +0.0001)"></i><i class="sq neg" title="fold 1: 0.7451 (delta -0.0008)"></i><i class="sq pos" title="fold 2: 0.7328 (delta +0.0019)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0001, worst strong class -0.0016"><i class="bar weak up" style="--h:0%"></i><i class="axis"></i><i class="bar strong down" style="--h:5%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_lora">moe_lora</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7416<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">+0.0003</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7446 (delta -0.0027)"></i><i class="sq pos" title="fold 1: 0.7461 (delta +0.0002)"></i><i class="sq pos" title="fold 2: 0.7342 (delta +0.0033)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0024, worst strong class -0.0025"><i class="bar weak down" style="--h:8%"></i><i class="axis"></i><i class="bar strong down" style="--h:8%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#opt_lion">opt_lion</a>
+      </td>
+  <td class="tier">optimizer</td>
+  <td class="num f1">0.7416<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">+0.0003</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7467 (delta -0.0006)"></i><i class="sq pos" title="fold 1: 0.7462 (delta +0.0003)"></i><i class="sq pos" title="fold 2: 0.7321 (delta +0.0012)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0005, worst strong class -0.0019"><i class="bar weak up" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:6%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_terrain">moe_terrain</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7414<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">+0.0001</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7457 (delta -0.0016)"></i><i class="sq neg" title="fold 1: 0.7458 (delta -0.0001)"></i><i class="sq pos" title="fold 2: 0.7327 (delta +0.0018)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0001, worst strong class -0.0016"><i class="bar weak down" style="--h:0%"></i><i class="axis"></i><i class="bar strong down" style="--h:5%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#tta_cbst__quantile0p1">tta_cbst__quantile0p1</a>
+      <span class="flag">transductive</span></td>
+  <td class="tier">transductive-v2</td>
+  <td class="num f1">0.7414<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">-0.0000</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7468 (delta -0.0005)"></i><i class="sq neg" title="fold 1: 0.7448 (delta -0.0011)"></i><i class="sq pos" title="fold 2: 0.7324 (delta +0.0015)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0004, worst strong class -0.0005"><i class="bar weak down" style="--h:1%"></i><i class="axis"></i><i class="bar strong down" style="--h:2%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#tta_cbst__quantile0p5">tta_cbst__quantile0p5</a>
+      <span class="flag">transductive</span></td>
+  <td class="tier">transductive-v2</td>
+  <td class="num f1">0.7413<em>&thinsp;&plusmn;0.008</em></td>
+  <td class="num delta flat">-0.0001</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7472 (delta -0.0001)"></i><i class="sq pos" title="fold 1: 0.7462 (delta +0.0003)"></i><i class="sq neg" title="fold 2: 0.7305 (delta -0.0004)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0029, worst strong class -0.0073"><i class="bar weak up" style="--h:10%"></i><i class="axis"></i><i class="bar strong down" style="--h:24%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#hier_c2f__label_smooth0p0">hier_c2f__label_smooth0p0</a>
+      </td>
+  <td class="tier">hierarchy-v2</td>
+  <td class="num f1">0.7412<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">-0.0002</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7447 (delta -0.0026)"></i><i class="sq neg" title="fold 1: 0.7452 (delta -0.0007)"></i><i class="sq pos" title="fold 2: 0.7337 (delta +0.0028)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0028, worst strong class -0.0025"><i class="bar weak down" style="--h:9%"></i><i class="axis"></i><i class="bar strong down" style="--h:8%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#ldam_drw">ldam_drw</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.7411<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">-0.0002</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7470 (delta -0.0003)"></i><i class="sq neg" title="fold 1: 0.7418 (delta -0.0041)"></i><i class="sq pos" title="fold 2: 0.7346 (delta +0.0037)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0005, worst strong class -0.0010"><i class="bar weak down" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:3%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#act_prelu">act_prelu</a>
+      </td>
+  <td class="tier">activation</td>
+  <td class="num f1">0.7410<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">-0.0003</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7458 (delta -0.0015)"></i><i class="sq neg" title="fold 1: 0.7448 (delta -0.0011)"></i><i class="sq pos" title="fold 2: 0.7326 (delta +0.0017)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0004, worst strong class -0.0033"><i class="bar weak up" style="--h:1%"></i><i class="axis"></i><i class="bar strong down" style="--h:11%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_soup__n_regions1">moe_soup__n_regions1</a>
+      </td>
+  <td class="tier">locality-v2</td>
+  <td class="num f1">0.7406<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">-0.0008</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7442 (delta -0.0031)"></i><i class="sq neg" title="fold 1: 0.7458 (delta -0.0001)"></i><i class="sq pos" title="fold 2: 0.7317 (delta +0.0008)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean +0.0006, worst strong class -0.0100"><i class="bar weak up" style="--h:2%"></i><i class="axis"></i><i class="bar strong down" style="--h:33%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#act_mish">act_mish</a>
+      </td>
+  <td class="tier">activation</td>
+  <td class="num f1">0.7404<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">-0.0010</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7446 (delta -0.0027)"></i><i class="sq neg" title="fold 1: 0.7445 (delta -0.0014)"></i><i class="sq pos" title="fold 2: 0.7320 (delta +0.0011)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0020, worst strong class -0.0022"><i class="bar weak down" style="--h:7%"></i><i class="axis"></i><i class="bar strong down" style="--h:7%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#act_snake">act_snake</a>
+      </td>
+  <td class="tier">activation</td>
+  <td class="num f1">0.7403<em>&thinsp;&plusmn;0.003</em></td>
+  <td class="num delta flat">-0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7413 (delta -0.0060)"></i><i class="sq neg" title="fold 1: 0.7434 (delta -0.0025)"></i><i class="sq pos" title="fold 2: 0.7361 (delta +0.0052)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0045, worst strong class -0.0041"><i class="bar weak down" style="--h:15%"></i><i class="axis"></i><i class="bar strong down" style="--h:14%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#opt_muon">opt_muon</a>
+      </td>
+  <td class="tier">optimizer</td>
+  <td class="num f1">0.7403<em>&thinsp;&plusmn;0.008</em></td>
+  <td class="num delta flat">-0.0011</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7463 (delta -0.0010)"></i><i class="sq neg" title="fold 1: 0.7458 (delta -0.0001)"></i><i class="sq neg" title="fold 2: 0.7289 (delta -0.0020)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0027, worst strong class -0.0017"><i class="bar weak down" style="--h:9%"></i><i class="axis"></i><i class="bar strong down" style="--h:6%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#selfdistill">selfdistill</a>
+      </td>
+  <td class="tier">transfer</td>
+  <td class="num f1">0.7401<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">-0.0013</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7459 (delta -0.0014)"></i><i class="sq neg" title="fold 1: 0.7442 (delta -0.0017)"></i><i class="sq neg" title="fold 2: 0.7302 (delta -0.0007)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0017, worst strong class -0.0017"><i class="bar weak down" style="--h:6%"></i><i class="axis"></i><i class="bar strong down" style="--h:6%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#film_hyper">film_hyper</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7397<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">-0.0016</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7453 (delta -0.0020)"></i><i class="sq neg" title="fold 1: 0.7412 (delta -0.0047)"></i><i class="sq pos" title="fold 2: 0.7327 (delta +0.0018)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0019, worst strong class -0.0126"><i class="bar weak down" style="--h:6%"></i><i class="axis"></i><i class="bar strong down" style="--h:42%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#moe_soup">moe_soup</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7396<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">-0.0017</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7463 (delta -0.0010)"></i><i class="sq neg" title="fold 1: 0.7424 (delta -0.0035)"></i><i class="sq neg" title="fold 2: 0.7301 (delta -0.0008)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0041, worst strong class -0.0029"><i class="bar weak down" style="--h:14%"></i><i class="axis"></i><i class="bar strong down" style="--h:10%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_fewshot_0p1">dr_fewshot_0p1</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7400<em>&thinsp;&plusmn;0.011</em></td>
+  <td class="num delta flat">-0.0018</td>
+  <td class="num ctrl"><span title="same probabilities, plain argmax, same evaluation rows">-0.0018</span></td>
+  <td><span class="folds"><i class="sq pos" title="fold 0: 0.7491 (delta +0.0017)"></i><i class="sq pos" title="fold 1: 0.7470 (delta +0.0008)"></i><i class="sq neg" title="fold 2: 0.7240 (delta -0.0081)"></i></span></td>
+  <td><span class="tradeoff empty"></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#pair_margin">pair_margin</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.7394<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">-0.0020</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7443 (delta -0.0030)"></i><i class="sq neg" title="fold 1: 0.7443 (delta -0.0016)"></i><i class="sq neg" title="fold 2: 0.7295 (delta -0.0014)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0013, worst strong class -0.0095"><i class="bar weak down" style="--h:4%"></i><i class="axis"></i><i class="bar strong down" style="--h:32%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#hier_specialist">hier_specialist</a>
+      </td>
+  <td class="tier">hierarchy</td>
+  <td class="num f1">0.7390<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta flat">-0.0023</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7446 (delta -0.0027)"></i><i class="sq neg" title="fold 1: 0.7436 (delta -0.0023)"></i><i class="sq neg" title="fold 2: 0.7288 (delta -0.0021)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0015, worst strong class -0.0107"><i class="bar weak down" style="--h:5%"></i><i class="axis"></i><i class="bar strong down" style="--h:36%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_fewshot_0p02">dr_fewshot_0p02</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7388<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta flat">-0.0025</td>
+  <td class="num ctrl"><span title="same probabilities, plain argmax, same evaluation rows">-0.0025</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7412 (delta -0.0063)"></i><i class="sq neg" title="fold 1: 0.7442 (delta -0.0014)"></i><i class="sq pos" title="fold 2: 0.7309 (delta +0.0002)"></i></span></td>
+  <td><span class="tradeoff empty"></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#numemb_lidar">numemb_lidar</a>
+      </td>
+  <td class="tier">architecture</td>
+  <td class="num f1">0.7385<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">-0.0028</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7445 (delta -0.0028)"></i><i class="sq neg" title="fold 1: 0.7379 (delta -0.0080)"></i><i class="sq pos" title="fold 2: 0.7332 (delta +0.0023)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0042, worst strong class -0.0069"><i class="bar weak down" style="--h:14%"></i><i class="axis"></i><i class="bar strong down" style="--h:23%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#knn_retrieval">knn_retrieval</a>
+      </td>
+  <td class="tier">locality</td>
+  <td class="num f1">0.7384<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta flat">-0.0030</td>
+  <td class="num ctrl"><span title="baseline_gval (0.7372)">+0.0012</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7395 (delta -0.0078)"></i><i class="sq neg" title="fold 1: 0.7442 (delta -0.0017)"></i><i class="sq pos" title="fold 2: 0.7314 (delta +0.0005)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0048, worst strong class -0.0039"><i class="bar weak down" style="--h:16%"></i><i class="axis"></i><i class="bar strong down" style="--h:13%"></i></span></td>
+  <td class="vd"><span class="chip tie">tie</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#numemb_all">numemb_all</a>
+      </td>
+  <td class="tier">architecture</td>
+  <td class="num f1">0.7380<em>&thinsp;&plusmn;0.003</em></td>
+  <td class="num delta drop">-0.0033</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7429 (delta -0.0044)"></i><i class="sq neg" title="fold 1: 0.7361 (delta -0.0098)"></i><i class="sq pos" title="fold 2: 0.7351 (delta +0.0042)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0097, worst strong class -0.0093"><i class="bar weak down" style="--h:32%"></i><i class="axis"></i><i class="bar strong down" style="--h:31%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#ctrl_noweight">ctrl_noweight</a>
+      </td>
+  <td class="tier">reference</td>
+  <td class="num f1">0.7380<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta drop">-0.0034</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7464 (delta -0.0009)"></i><i class="sq neg" title="fold 1: 0.7388 (delta -0.0071)"></i><i class="sq neg" title="fold 2: 0.7287 (delta -0.0022)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0024, worst strong class -0.0273"><i class="bar weak down" style="--h:8%"></i><i class="axis"></i><i class="bar strong down" style="--h:91%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#focal">focal</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.7373<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta drop">-0.0040</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7416 (delta -0.0057)"></i><i class="sq neg" title="fold 1: 0.7404 (delta -0.0055)"></i><i class="sq neg" title="fold 2: 0.7300 (delta -0.0009)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0088, worst strong class -0.0042"><i class="bar weak down" style="--h:29%"></i><i class="axis"></i><i class="bar strong down" style="--h:14%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#tau_norm">tau_norm</a>
+      </td>
+  <td class="tier">classifier</td>
+  <td class="num f1">0.7374<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta drop">-0.0040</td>
+  <td class="num ctrl"><span title="baseline_gval (0.7372)">+0.0002</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7391 (delta -0.0082)"></i><i class="sq neg" title="fold 1: 0.7433 (delta -0.0026)"></i><i class="sq neg" title="fold 2: 0.7298 (delta -0.0011)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0049, worst strong class -0.0103"><i class="bar weak down" style="--h:16%"></i><i class="axis"></i><i class="bar strong down" style="--h:34%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#baseline_gval">baseline_gval</a>
+      </td>
+  <td class="tier">reference</td>
+  <td class="num f1">0.7372<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta drop">-0.0042</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7395 (delta -0.0078)"></i><i class="sq neg" title="fold 1: 0.7418 (delta -0.0041)"></i><i class="sq neg" title="fold 2: 0.7302 (delta -0.0007)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0061, worst strong class -0.0081"><i class="bar weak down" style="--h:20%"></i><i class="axis"></i><i class="bar strong down" style="--h:27%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_fewshot_0p05">dr_fewshot_0p05</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7376<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta drop">-0.0042</td>
+  <td class="num ctrl"><span title="same probabilities, plain argmax, same evaluation rows">-0.0042</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7377 (delta -0.0098)"></i><i class="sq neg" title="fold 1: 0.7449 (delta -0.0009)"></i><i class="sq neg" title="fold 2: 0.7300 (delta -0.0018)"></i></span></td>
+  <td><span class="tradeoff empty"></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_logitadj_tau">dr_logitadj_tau</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7372<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta drop">-0.0042</td>
+  <td class="num ctrl"><span title="baseline_gval plain argmax 0.7372">+0.0000</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7395 (delta -0.0078)"></i><i class="sq neg" title="fold 1: 0.7418 (delta -0.0041)"></i><i class="sq neg" title="fold 2: 0.7302 (delta -0.0007)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0061, worst strong class -0.0081"><i class="bar weak down" style="--h:20%"></i><i class="axis"></i><i class="bar strong down" style="--h:27%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_prior_tune">dr_prior_tune</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7346<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta drop">-0.0068</td>
+  <td class="num ctrl"><span title="baseline_gval plain argmax 0.7372">-0.0026</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7404 (delta -0.0069)"></i><i class="sq neg" title="fold 1: 0.7392 (delta -0.0067)"></i><i class="sq neg" title="fold 2: 0.7241 (delta -0.0068)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0078, worst strong class -0.0264"><i class="bar weak down" style="--h:26%"></i><i class="axis"></i><i class="bar strong down" style="--h:88%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_fewshot_0p01">dr_fewshot_0p01</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7342<em>&thinsp;&plusmn;0.007</em></td>
+  <td class="num delta drop">-0.0072</td>
+  <td class="num ctrl"><span title="same probabilities, plain argmax, same evaluation rows">-0.0072</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7414 (delta -0.0059)"></i><i class="sq neg" title="fold 1: 0.7365 (delta -0.0093)"></i><i class="sq neg" title="fold 2: 0.7248 (delta -0.0065)"></i></span></td>
+  <td><span class="tradeoff empty"></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_priorem">dr_priorem</a>
+      <span class="flag">transductive</span></td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7337<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta drop">-0.0077</td>
+  <td class="num ctrl"><span title="baseline_gval plain argmax 0.7372">-0.0035</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7344 (delta -0.0129)"></i><i class="sq neg" title="fold 1: 0.7410 (delta -0.0049)"></i><i class="sq neg" title="fold 2: 0.7257 (delta -0.0052)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0035, worst strong class -0.0170"><i class="bar weak down" style="--h:12%"></i><i class="axis"></i><i class="bar strong down" style="--h:57%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#hier_finewt">hier_finewt</a>
+      </td>
+  <td class="tier">hierarchy</td>
+  <td class="num f1">0.7334<em>&thinsp;&plusmn;0.004</em></td>
+  <td class="num delta drop">-0.0080</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7376 (delta -0.0097)"></i><i class="sq neg" title="fold 1: 0.7354 (delta -0.0105)"></i><i class="sq neg" title="fold 2: 0.7271 (delta -0.0038)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0167, worst strong class -0.0068"><i class="bar weak down" style="--h:56%"></i><i class="axis"></i><i class="bar strong down" style="--h:23%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#vs_loss">vs_loss</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.7333<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta drop">-0.0081</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7322 (delta -0.0151)"></i><i class="sq neg" title="fold 1: 0.7396 (delta -0.0063)"></i><i class="sq neg" title="fold 2: 0.7280 (delta -0.0029)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0054, worst strong class -0.0503"><i class="bar weak down" style="--h:18%"></i><i class="axis"></i><i class="bar strong down" style="--h:100%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#crt">crt</a>
+      </td>
+  <td class="tier">classifier</td>
+  <td class="num f1">0.7311<em>&thinsp;&plusmn;0.004</em></td>
+  <td class="num delta drop">-0.0102</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7343 (delta -0.0130)"></i><i class="sq neg" title="fold 1: 0.7342 (delta -0.0117)"></i><i class="sq neg" title="fold 2: 0.7249 (delta -0.0060)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0193, worst strong class -0.0073"><i class="bar weak down" style="--h:64%"></i><i class="axis"></i><i class="bar strong down" style="--h:24%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#tabm">tabm</a>
+      </td>
+  <td class="tier">architecture</td>
+  <td class="num f1">0.7283<em>&thinsp;&plusmn;0.005</em></td>
+  <td class="num delta drop">-0.0130</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7325 (delta -0.0148)"></i><i class="sq neg" title="fold 1: 0.7306 (delta -0.0153)"></i><i class="sq neg" title="fold 2: 0.7219 (delta -0.0090)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0191, worst strong class -0.0176"><i class="bar weak down" style="--h:64%"></i><i class="axis"></i><i class="bar strong down" style="--h:59%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#dr_fewshot_0p002">dr_fewshot_0p002</a>
+      </td>
+  <td class="tier">decision-rule</td>
+  <td class="num f1">0.7239<em>&thinsp;&plusmn;0.002</em></td>
+  <td class="num delta drop">-0.0173</td>
+  <td class="num ctrl"><span title="same probabilities, plain argmax, same evaluation rows">-0.0173</span></td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7248 (delta -0.0225)"></i><i class="sq neg" title="fold 1: 0.7255 (delta -0.0203)"></i><i class="sq neg" title="fold 2: 0.7215 (delta -0.0090)"></i></span></td>
+  <td><span class="tradeoff empty"></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#kan">kan</a>
+      </td>
+  <td class="tier">architecture</td>
+  <td class="num f1">0.7106<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta drop">-0.0308</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7142 (delta -0.0331)"></i><i class="sq neg" title="fold 1: 0.7161 (delta -0.0298)"></i><i class="sq neg" title="fold 2: 0.7015 (delta -0.0294)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0369, worst strong class -0.0707"><i class="bar weak down" style="--h:100%"></i><i class="axis"></i><i class="bar strong down" style="--h:100%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#probe_linear">probe_linear</a>
+      </td>
+  <td class="tier">reference</td>
+  <td class="num f1">0.7040<em>&thinsp;&plusmn;0.006</em></td>
+  <td class="num delta drop">-0.0373</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7048 (delta -0.0425)"></i><i class="sq neg" title="fold 1: 0.7108 (delta -0.0351)"></i><i class="sq neg" title="fold 2: 0.6965 (delta -0.0344)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0549, worst strong class -0.0366"><i class="bar weak down" style="--h:100%"></i><i class="axis"></i><i class="bar strong down" style="--h:100%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#rf_tuned">rf_tuned</a>
+      </td>
+  <td class="tier">reference</td>
+  <td class="num f1">0.6945<em>&thinsp;&plusmn;0.010</em></td>
+  <td class="num delta drop">-0.0468</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.7085 (delta -0.0388)"></i><i class="sq neg" title="fold 1: 0.6867 (delta -0.0592)"></i><i class="sq neg" title="fold 2: 0.6884 (delta -0.0425)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0566, worst strong class -0.1314"><i class="bar weak down" style="--h:100%"></i><i class="axis"></i><i class="bar strong down" style="--h:100%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#balanced_softmax">balanced_softmax</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.6189<em>&thinsp;&plusmn;0.042</em></td>
+  <td class="num delta drop">-0.1224</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.6424 (delta -0.1049)"></i><i class="sq neg" title="fold 1: 0.5595 (delta -0.1864)"></i><i class="sq neg" title="fold 2: 0.6549 (delta -0.0760)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.0322, worst strong class -0.7739"><i class="bar weak down" style="--h:100%"></i><i class="axis"></i><i class="bar strong down" style="--h:100%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+<tr class="">
+  <td class="nm"><a href="#vs_loss_tau1.0">vs_loss_tau1.0</a>
+      </td>
+  <td class="tier">loss</td>
+  <td class="num f1">0.1409<em>&thinsp;&plusmn;0.060</em></td>
+  <td class="num delta drop">-0.6005</td>
+  <td class="num ctrl">—</td>
+  <td><span class="folds"><i class="sq neg" title="fold 0: 0.1372 (delta -0.6101)"></i><i class="sq neg" title="fold 1: 0.0695 (delta -0.6764)"></i><i class="sq neg" title="fold 2: 0.2159 (delta -0.5150)"></i></span></td>
+  <td><span class="tradeoff" title="weak-class mean -0.3742, worst strong class -0.9537"><i class="bar weak down" style="--h:100%"></i><i class="axis"></i><i class="bar strong down" style="--h:100%"></i></span></td>
+  <td class="vd"><span class="chip loss">LOSS</span></td>
+</tr>
+</tbody></table></div>
+
+<h2>The floor this whole page sits on</h2>
+<p class="note">Same folds, same cls12 relabel, same sqrt class weights, same
+training-fold-only scaler — only the estimator changes. Gold tick marks the deployed
+model; every dot is one model on one shared macro-F1 axis. A <b>linear probe</b> on
+the 67 features reaches 0.7040 and a <b>tuned random forest</b> 0.6945, so
+everything the deployed network's two hidden layers buy over a linear read of
+AlphaEarth is <b>+0.0373</b>. The best of 69 scored trials adds
+<b>+0.0040</b> on top of that — 9&times;
+smaller than the nonlinearity itself, and inside the seed noise. That ratio is the
+argument for stopping: the remaining headroom is not in the estimator.</p>
+<p class="note">The forest is the more interesting of the two. It fits the inner
+val to 0.8825 — far past the deployed net's
+0.7974 — and then lands <em>below the linear probe</em>
+on held-out regions, a val-to-test gap of 0.188 against the net's
+0.056. Axis-aligned splits memorise the training regions and do not
+carry across the fold boundary, which is the same failure the capacity,
+regularisation and locality studies each found from a different direction. It is
+also the clearest statement of what the deployed MLP is for: not more fit, but a
+decision surface smooth enough to survive being moved.</p>
+<div class="scroll"><table class="floor">
+<thead><tr><th>model</th><th class="num">macro-F1</th><th class="num">Δ deployed</th>
+<th>0.691 &nbsp;&rarr;&nbsp; 0.818</th></tr></thead>
+<tbody><tr class="floor"><td class="nm"><a href="#probe_linear">probe_linear</a><span>linear probe on the same 67 features</span></td><td class="num">0.7040</td><td class="num delta">-0.0373</td><td class="axcell"><span class="axtrack"><i class="tick" title="deployed baseline 0.7414" style="left:39.8%"></i><i class="dot floor" style="left:10.6%" title="probe_linear: 0.7040 (folds 0.7048, 0.7108, 0.6965)"></i></span></td></tr><tr class="floor"><td class="nm"><a href="#rf_tuned">rf_tuned</a><span>tuned random forest, same folds and weights</span></td><td class="num">0.6945</td><td class="num delta">-0.0468</td><td class="axcell"><span class="axtrack"><i class="tick" title="deployed baseline 0.7414" style="left:39.8%"></i><i class="dot floor" style="left:3.1%" title="rf_tuned: 0.6945 (folds 0.7085, 0.6867, 0.6884)"></i></span></td></tr><tr class="base"><td class="nm"><a href="#baseline">baseline</a><span>the deployed 5-seed MLP</span></td><td class="num">0.7414</td><td class="num delta">—</td><td class="axcell"><span class="axtrack"><i class="tick" title="deployed baseline 0.7414" style="left:39.8%"></i><i class="dot base" style="left:39.8%" title="baseline: 0.7414 (folds 0.7473, 0.7459, 0.7309)"></i></span></td></tr><tr class="best"><td class="nm"><a href="#moe_shared__n_experts8_top_k2">moe_shared__n_experts8_top_k2</a><span>best of 69 scored trials</span></td><td class="num">0.7453</td><td class="num delta">+0.0040</td><td class="axcell"><span class="axtrack"><i class="tick" title="deployed baseline 0.7414" style="left:39.8%"></i><i class="dot best" style="left:42.8%" title="moe_shared__n_experts8_top_k2: 0.7453 (folds 0.7470, 0.7463, 0.7426)"></i></span></td></tr><tr class="bound"><td class="nm"><a href="#bound_region_oracle">bound_region_oracle</a><span>per-row oracle over regional models — not reachable</span></td><td class="num">0.8144</td><td class="num delta">+0.0730</td><td class="axcell"><span class="axtrack"><i class="tick" title="deployed baseline 0.7414" style="left:39.8%"></i><i class="dot bound" style="left:96.9%" title="bound_region_oracle: 0.8144 (folds 0.8173, 0.8175, 0.8084)"></i></span></td></tr></tbody></table></div>
+
+<h2>What has come out of it</h2>
+<p class="note">Interpretation, updated as trials land. A negative that identifies
+WHERE the ceiling lives is worth more here than another tie.</p>
+<div class="findings"><article class="finding settled"><h4>The whole search is worth an eighth of the nonlinearity</h4><p>A multinomial logistic regression on the same 67 standardized features, the same folds, the same sqrt weights and the same cls12 relabel scores 0.7040 against the deployed net&#x27;s 0.7414 — so everything two hidden layers and a 5-seed ensemble buy over a LINEAR read of AlphaEarth is +0.0373, paired on every fold. The best of 69 searched mechanisms adds +0.0040 on top of that, roughly 9 times smaller, and it does not survive a fresh seed. The nonlinearity is worth most where the search wants to work — on the weak classes the probe loses class 2 -0.087, class 5 -0.054, class 6 -0.032, class 7 -0.047 — which is the same statement from the other side: the representation the net builds is doing the work that is left, and nobody has found a way to add to it.</p></article><article class="finding settled"><h4>A tuned forest fits the training regions far better and transfers worse</h4><p>Same harness, a 6-cell grid ranked on the inner val and refit at 500 trees: inner val 0.8825 — far past the deployed net&#x27;s 0.7974, and past the linear probe&#x27;s 0.7134 by +0.1691 — and then 0.6945 on held-out regions, -0.0095 against that same probe. The val-to-test gap is 0.188 against the net&#x27;s 0.056. Every cell of the grid picked the least regularised corner (max_features=32, min_samples_leaf=1) because on a random inner val more fit always looks better. This is the capacity finding, the regularisation sweep and the locality round arriving from a fourth direction: in-distribution fit is not the currency here, and axis-aligned splits are the wrong shape for a decision surface that has to be moved to an unseen region.</p></article><article class="finding settled"><h4>No arm in this round earns its inference cost</h4><p>Measured on the deployed path (predict_classmap_gpu, 5-seed ensemble, 262,144-row chunks, NVIDIA A40-24Q) over the wall-to-wall target of 1.3B px: the deployed MLP takes 2.7 min behind a ~15 min raster read, so it is 5.8x inside the I/O wall and effectively free. moe_shared@8 experts — the best mean delta in the round — takes 13.5 min, 5.0x the baseline, which still hides under the read on this 8-core box but consumes 87% of the headroom; at 16 experts it crosses the read outright. mod_depth, the only arm the capacity control does not explain, costs 1.8x. Wall time is worse than the FLOPs (5.0x for 2.0x the MACs) because the code loops over every expert and the narrow expert layers each re-read the whole input block — top-k here buys capacity, not sparsity. Priced against a +0.0040 that halves on a reseed, none of them is worth adopting; and since local_off reproduces the deployed trunk bit-for-bit, any of them could be switched back off without retraining if it ever were.</p></article><article class="finding settled"><h4>Almost all of the MoE&#x27;s gain is parameters, not locality</h4><p>The shared-expert MoE lifts inner val from 0.7974 to 0.8152, which reads as locality being learned in-distribution and failing to transfer. A plain MLP widened to the same 78k parameters, with no router and no experts, reaches 0.8121 — and on fold 1 it BEATS the MoE&#x27;s val outright, 0.8104 to 0.8089. Of the +0.0178 val gain, plain capacity accounts for +0.0147 and routing for +0.0031; on the held-out region the split is +0.0007 and +0.0016. Routing&#x27;s share of both is inside the noise. The honest reading is not that locality was learned and lost at the fold boundary — it is that adding a routed local branch does about as much as adding the same weights in a straight line.</p></article><article class="finding settled"><h4>The +0.0023 shrank on a fresh seed but, unusually here, did not vanish</h4><p>moe_shared was the best result of this round and the only trial in fifty with all three folds positive. Re-run on an independent seed set — new inner-val split, all five members reseeded, scored against a seed-1 baseline — it came back +0.0016 with folds +0.0004 / +0.0010 / +0.0034. It shrank by about 30 percent and stayed positive on all six fold-by-seed combinations, which is more than the previous programme&#x27;s best managed: that one halved to +0.0013 AND flipped fold 0 negative on both seeds. So this is a tie by the pre-registered rule and it is also the most durable tie the programme has produced. Seed-averaged it is +0.0019, of which the matched-capacity control accounts for +0.0007, leaving routing about +0.0012 — one noise floor.</p></article><article class="finding settled"><h4>A perfect region-picking router is capped BELOW the global model</h4><p>bound_region_oracle fine-tunes one copy of the model per KMeans region and then cheats with the test labels, twice. Picking the single best regional specialist for each held-out fold with hindsight scores 0.7341 against the global model&#x27;s 0.7414 — a ceiling 0.0072 BELOW the thing it is meant to beat, and none of the twelve regional models across three folds beats the global model even once. So a router that assigns one expert per region is not under-engineered here, it is capped below baseline before a single routing decision is made, which is why every hard-routed variant since stage6 has lost. The per-row oracle, free to pick whichever of the five models happens to be right for each individual pixel, reaches 0.8144, or +0.0730 of headroom. That is the same shape and nearly the same size as the +0.063 ensemble-member oracle that closed the MoE question the last time, and it is unreachable for the same reason: it measures disagreement, and disagreement here does not track correctness.</p></article><article class="finding open"><h4>The one arm the capacity control does not explain is adaptive DEPTH</h4><p>mixture-of-depths routes only the hardest half of rows through an extra zero-initialised block and lets the rest bypass it. It scored +0.0028, the highest delta of the whole fifty-trial programme, with all three folds positive, no strong class down more than 0.0013, and all four weak classes up. What makes it different from every other locality arm is the direction of its validation score: it carries MORE parameters than the matched-capacity control (84.9k vs 78.0k) yet scores LOWER on inner val (0.8040 vs 0.8121) while scoring HIGHER on the held-out region (+0.0028 vs +0.0007). Every other mechanism in this round bought val and returned nothing; this one did the reverse, which is the signature of generalisation rather than memorisation. On a fresh seed it halved to +0.0013 — winner&#x27;s curse again — but stayed positive on all six fold-by-seed combinations, averaging +0.0021. Still a tie against the +0.003 bar. It is the only idea here that earned a follow-up rather than a filing. The pre-registered capacity sweep now adds a symmetric interior optimum: routing 25 percent of rows through the extra block scores +0.0017, 50 percent +0.0028, 75 percent +0.0017. Both ends collapse toward things already measured — at 0.75 nearly every row takes the block, which is plain extra capacity and worth +0.0007, and at 0.25 almost none does, which is the baseline. The peak sits where the routing decision is actually selective, which is what the mechanism claims to be for. The margins are close to the 0.0013 noise floor, so the shape is more informative than the numbers.</p></article><article class="finding settled"><h4>Finer experts buy more validation fit and less consistency</h4><p>DeepSeekMoE&#x27;s central claim is that many small experts beat few large ones. The granularity axis here runs 4 / 8 / 16 experts at +0.0023 / +0.0040 / +0.0033 mean delta, and the mean is the wrong thing to read. Per fold it goes +0.0002/+0.0014/+0.0053, then -0.0003/+0.0004/+0.0117, then -0.0010/-0.0006/+0.0115: as the partition gets finer the gain migrates entirely into fold 2 while the other two folds slide negative. Inner val climbs monotonically across the same axis, 0.8152 to 0.8236 to 0.8248, all of it above the matched-capacity control&#x27;s 0.8121. So finer granularity does exactly what more capacity does on this model — buys in-distribution fit — and it buys LESS consistency across the fold boundary while doing it. The 8-expert arm&#x27;s +0.0040 is the largest mean delta of the whole programme and the only one above the +0.003 bar; it is a tie, and it is the cleanest illustration in sixty trials of why the all-folds-positive rule exists.</p></article><article class="finding method"><h4>A verdict-logic bug that published positive results as losses</h4><p>The rule was WIN, else tie, else LOSS, which meant a mean ABOVE the +0.003 bar that failed the all-folds test fell through to LOSS. Both fine-grained arms hit that path and were written to the page as losses at +0.0040 and +0.0033. Verdicts now emit `split` for a strongly positive mean carried by one fold, kept distinct from a genuine negative. Two records were affected; `fix_verdicts.py` re-derives the label for every record from its own stored delta and all-folds flag, so no score moved and nothing was re-run. It exists as a script rather than a one-off because a loop process that imported the old module keeps writing the old label until it restarts.</p></article><article class="finding settled"><h4>Across eleven locality mechanisms, buying validation buys nothing on the map</h4><p>Ranked by inner val, the ten comparable arms run from mod_depth at 0.8040 to moe_lora at 0.8418, and the held-out delta runs the other way: the two arms that fit the training regions best, LoRA experts at 0.8418 and the FiLM hypernet at 0.8283, land at +0.0003 and -0.0016, while the arm with the LOWEST val is the only one that clears +0.0025. Pearson correlation between val and test delta is -0.60 (p=0.07), Spearman -0.46 (p=0.19) — a negative trend that does not reach significance at n=10 and leans on those two arms, so it is suggestive rather than established. It points the same way as the capacity control, the scaling study and the regularisation sweep: on this model, anything that lifts in-distribution fit is at best neutral across the fold boundary.</p></article><article class="finding settled"><h4>Zero-initialising the local branch turned out not to matter either</h4><p>Both design rules this round was built on were argued from first principles, and the pre-registered controls broke one of them. Starting the routed experts at zero means the network computes the deployed model exactly at step 0, so it can only add — an appealing guarantee, and the specific thing the old spatial MoEs could not claim. Running the same architecture with ordinary random init scores +0.0024 against zero-init&#x27;s +0.0023. No difference. The guarantee is real and it buys nothing, which fits everything else here: the routed branch is not where the outcome is decided.</p></article><article class="finding settled"><h4>The full locality ledger: eleven mechanisms, no wins</h4><p>Delta against 0.7414, all ties: mod_depth +0.0028, moe_echoice +0.0026, moe_shared +0.0023, moe_lossfree +0.0020, moe_geo +0.0014, moe_auxbal +0.0013, knn_retrieval +0.0012 against its own group-val control, ctrl_capacity +0.0007, moe_lora +0.0003, moe_terrain +0.0001, film_hyper -0.0016, moe_soup -0.0017. Two families are worth naming. The four load-balancing variants — none, loss-free bias, Switch plus z-loss, and expert choice — span +0.0013 to +0.0026, so how the router is balanced matters as little as what it reads. And moe_soup, the most literal reading of the whole idea, fine-tuning one copy of the model per geographic region and averaging the copies in weight space, is the second-worst arm in the round at -0.0017.</p></article><article class="finding settled"><h4>The soup control separates fine-tuning from locality, and locality is the harmful half</h4><p>moe_soup fine-tunes a copy per region and averages the copies in weight space, scoring -0.0017. Its pre-registered control, the same extra fine-tuning with n_regions=1 so nothing is regional, scores -0.0008. Extra fine-tuning on its own costs 0.0008; splitting that fine-tuning geographically costs a further 0.0009. Both halves are negative, and the specifically LOCAL half is the larger of the two.</p></article><article class="finding settled"><h4>The gate source turned out not to matter, which was not the prediction</h4><p>The round was designed around a contrast: route on CONTENT the way an LLM MoE does, and it should beat routing on POSITION the way stage7 did, because a held-out region cannot be placed inside a coordinate partition. The three arms came in at +0.0023 (content), +0.0014 (lon/lat) and +0.0001 (terrain) — a spread narrower than this harness&#x27;s noise floor of about 0.0013. Whatever separates these arms from stage7&#x27;s -0.004 to -0.023, it is not what the router reads.</p></article><article class="finding settled"><h4>The router did not collapse — it transferred perfectly and that changed nothing</h4><p>stage7&#x27;s hard KMeans gate put 84-95 percent of a held-out fold on one expert, and that diagnosis is what this round was built to fix. It was not the problem. Under soft top-2 routing the busiest expert&#x27;s share on the held-out region matches its share on the training rows to within 0.01 on every arm and every fold — content 0.426/0.435, terrain 0.524/0.527, even lon/lat 0.305/0.310. The partition travels across the fold boundary intact. The knowledge attached to it does not.</p></article><article class="finding open"><h4>What actually changed since stage7 is addition, not routing</h4><p>Nine earlier MoE variants LOST, from -0.0024 to -0.0226, because routing replaced the global model with a partition of it and each expert then trained on a fraction of the data. These arms tie instead, and the one structural difference is that the global model is still here: an always-on shared expert trained on every row, with zero-initialised experts that start at exactly the deployed network. Shared-expert isolation converts a losing MoE into a harmless one. It does not convert it into a winning one.</p></article><article class="finding settled"><h4>A retrieval datastore, priced honestly, is worth nothing</h4><p>kNN-LM interpolation over training rows in the network&#x27;s own representation space is the purest local model available — no partition, no experts, just which rows this pixel resembles. Scored against the group-val control it gains +0.0012, with the fitted mixing weight landing at lambda=1.00 on fold 0, meaning the grid search declined to use retrieval at all. Retrieval alone scores 0.730/0.729/0.721 against the network&#x27;s 0.740/0.742/0.730, so the datastore is nearly as good as the network and adds almost nothing to it.</p></article><article class="finding method"><h4>The same retrieval looked worth +0.015 with a dishonest validation split</h4><p>Fitted on a RANDOM inner val, the retrieval mixing weight came out at lambda=0.6 and appeared to buy about +0.015. Fitted on whole held-out cells it comes out at 1.00 and buys nothing. A random val row&#x27;s nearest neighbours include rows from its own cell, so retrieval is being scored on a lookup it will never get to perform in a new region. Same mechanism, same code, opposite conclusion — which is the entire reason decision-rule trials on this page are scored against baseline_gval.</p></article><article class="finding settled"><h4>A local model needs more labels than the region contains</h4><p>Inside a held-out region, with labels bought as whole cells and scored on evaluation cells nothing trains on: a model trained only on local labels scores -0.238 against the global model at 7.4k local labels, -0.129 at 49k, and -0.029 at 92k. It converges toward the global model and does not reach it, and 92k is already most of the labels the region has. Fine-tuning the global model on those same labels is worse than leaving it alone at every budget (-0.057, -0.083, -0.009): the local set is too small and too class-skewed to adapt on without forgetting. The one thing that does work is the least interesting — pooling the local labels into the global training set, +0.001 to +0.004.</p></article><article class="finding settled"><h4>The harness reproduces the deployed model exactly</h4><p>Baseline scores 0.7414 with per-fold 0.7473 / 0.7459 / 0.7309 and a per-class profile identical to the stored ontology reference. Every delta on this page is paired against that run, not against a number carried over from another script.</p></article><article class="finding settled"><h4>Holding the inner val out by whole cells costs 0.0042</h4><p>baseline_gval is the same recipe with the early-stopping split taken as whole cell_ids instead of random rows. It scores 0.7372. Stopping on an honest transfer estimate makes the model worse, reproducing the earlier spatial-early-stopping result from a different direction. Trials that need a spatial inner val are scored against this control, not against the baseline, so they are not charged twice for the same tax.</p></article><article class="finding settled"><h4>The best of 45 trials does not survive a fresh seed</h4><p>Schedule-Free AdamW combined with a trainable xIELU activation scored +0.0028, the highest of the whole program, and only missed the win bar because fold 0 was -0.0012. Re-run on an independent seed set — new inner-val split, all five ensemble members reseeded — it fell to +0.0013, with fold 0 negative again. Sixteen of thirty round-1 mechanisms land inside plus or minus 0.003 and that cluster is centred on zero (mean -0.00036, sd 0.00131), so across 45 draws the expected best is about +0.0031 by chance alone. The top result is exactly what selecting the maximum of a null distribution looks like, and it shrank on cue.</p></article><article class="finding settled"><h4>Nothing moves the weak classes; only the rare class moves at all</h4><p>Across 45 mechanisms, every per-class change larger than 0.01 lands on snow/ice, scrub or rock/sand, and it goes in both directions depending on the run — snow/ice alone swings from -0.027 to +0.034. Those are the smallest classes, so that is variance, not response. Grassland, wetland and the crop/grassland and scrub/sparse-veg boundaries never move by more than about 0.005 in any trial that is not an outright collapse. The four weak classes are not merely hard to improve; they are unresponsive to margins, priors, hierarchy, oversampling, distillation, new activations, new optimizers, new architectures and transductive adaptation alike.</p></article><article class="finding settled"><h4>The decision-rule headroom is mostly an illusion</h4><p>Refitting per-class offsets on each test fold appears to buy +0.0064 over the same probabilities, which looked like real headroom sitting outside the network. It is not. Fitting those same 10 offsets on a RANDOM SUBSET of the target region and scoring on the rows left out is negative or flat at every budget tested, right up to 22,000 labels per fold (-0.0173 at 442 labels, -0.0018 at 22,124). Ten free parameters tuned against a non-smooth metric on the very rows they are scored on will always look good. The honest reading is that argmax is already close to the best rule this posterior supports, and no labelling budget in a new region changes that.</p></article><article class="finding settled"><h4>Every prior correction that is strong enough to matter is too strong</h4><p>The imbalance-loss family separates cleanly by correction strength rather than by method. LDAM-DRW, whose margin is capped at 0.5, ties at -0.0002. Balanced softmax, which applies the full log-prior, costs -0.1224. Vector scaling at the paper&#x27;s nominal tau=1.0 collapses to 0.1409 with the FREQUENT classes falling to F1 0.000. On a 140:1 imbalance the full correction is a 4.9-nat spread that boosts the rarest class about 134x at test. Retuned to tau=0.25, VS still loses 0.0081, and since the additive term alone was worth +0.0015 in earlier work, the harm is isolated to VS&#x27;s multiplicative margin term.</p></article><article class="finding settled"><h4>A specialist with the whole boundary to itself still loses</h4><p>hier_specialist trains a dedicated binary expert on crop-vs-grassland and scrub-vs-sparse-veg and consults it only on rows the base model already assigns to those pairs. The structural guarantee held perfectly: classes 2, 4, 7, 8, 10 and 12 moved by exactly 0.0000. But the experts made their own pairs worse (crop -0.0067, grassland -0.0076, sparse-veg -0.0107) while switching about 6,000 rows per fold. A model with nothing to do but separate two classes, trained on every row of both, cannot beat a ten-way classifier at that same job. This is what a boundary that is definitional rather than capacity-limited looks like.</p></article><article class="finding open"><h4>Hierarchy helps the rare class, not the boundaries it was built for</h4><p>The factorised coarse-to-fine head was designed around the ontology probe, which priced 0.044 macro-F1 inside the crop/grassland and scrub/sparse-veg superclasses. It moved those two boundaries by about 0.0007, which is nothing. Its one real effect was snow/ice +0.0151. Mean delta +0.0011 with folds -0.0016 / -0.0001 / +0.0050 is a tie, not a win, by the all-folds-positive rule.</p></article><article class="finding method"><h4>A caught bug worth recording</h4><p>The target-prior EM first ran at macro-F1 0.0004. The cause was passing empirical label frequencies as the source prior when the network trains with sqrt class weights, so its posterior already carries a flattened prior; dividing by the steeper one re-boosted rare classes each iteration and the recursion ran away to 99.3% snow/ice. Passing the model&#x27;s own mean predicted probability is both the fix and what the derivation actually asks for. The estimator now refuses to return a degenerate prior instead of reporting one.</p></article></div>
+
+<h2>What the winner would cost to run</h2>
+<p class="note">Measured on the deployed path — <code>predict_classmap_gpu</code>,
+5-seed ensemble, 262,144-row chunks on the NVIDIA A40-24Q — over the
+wall-to-wall target of 1.3&nbsp;billion pixels. The dashed line is the pipeline's
+read ceiling on this 8-core box (1.4&nbsp;M&nbsp;px/s with six
+reader threads); <code>predict_raster.py</code> overlaps read with GPU, so the run
+takes roughly the LONGER of the two and a bar left of the line costs nothing
+end-to-end. The deployed MLP sits at 2.7 min against a
+15-min read — 5.8&times; of headroom, which
+is why the README calls this pipeline I/O-bound.
+<code>moe_shared@8&nbsp;experts</code>, the arm with the best mean delta, spends
+13.5 min: still under the line, so on THIS box it is close to
+free — and it has eaten 87&#37; of the
+headroom, so the moment reads get faster (more cores, local NVMe, a cached AOI) the
+model becomes the wall instead of the raster.
+<code>@16&nbsp;experts</code> already crosses it at 23.8 min.
+The two MAC columns are the other half of the story: the second is what an ideal
+sparse kernel would execute, the first is what the code runs, and the difference is
+work the dense expert loop never skips. Wall time is worse than even that —
+5.0&times; the baseline for 2.0&times; the
+MACs — because the experts are narrow and each re-reads the whole input block, so
+they run far below the arithmetic intensity of the trunk. Top-k here buys capacity,
+not FLOPs.</p>
+<div class="scroll"><table class="cost">
+<thead><tr><th>arm</th><th class="num">params</th><th class="num">MAC/row</th>
+<th class="num sub">ideal sparse</th><th class="num">M px/s</th>
+<th class="num">min / 1.3B px</th><th>vs the read ceiling</th></tr></thead>
+<tbody><tr class="base"><td class="nm"><a href="#baseline">baseline</a><span>deployed MLP 256,128</span></td><td class="num">51,594</td><td class="num">51,200</td><td class="num sub">51,200</td><td class="num">8.06</td><td class="num">2.7<em>&thinsp;1.0&times;</em></td><td class="costcell"><span class="costtrack" title="baseline: 2.7 min of GPU against a 15 min read"><i class="io" style="left:62.5%"></i><i class="cb base " style="width:10.9%"></i></span></td></tr><tr class=""><td class="nm"><a href="#ctrl_capacity">ctrl_capacity</a><span>plain MLP 320,170 (matched capacity)</span></td><td class="num">78,040</td><td class="num">77,540</td><td class="num sub">77,540</td><td class="num">6.03</td><td class="num">3.6<em>&thinsp;1.3&times;</em></td><td class="costcell"><span class="costtrack" title="ctrl_capacity: 3.6 min of GPU against a 15 min read"><i class="io" style="left:62.5%"></i><i class="cb  " style="width:14.5%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared">moe_shared</a><span>shared + 4 experts, top-2</span></td><td class="num">78,914</td><td class="num">78,092</td><td class="num sub">64,780</td><td class="num">2.57</td><td class="num">8.4<em>&thinsp;3.1&times;</em></td><td class="costcell"><span class="costtrack" title="moe_shared: 8.4 min of GPU against a 15 min read"><i class="io" style="left:62.5%"></i><i class="cb  " style="width:34.0%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared__n_experts8_top_k2">moe_shared__n_experts8_top_k2</a><span>shared + 8 experts, top-2</span></td><td class="num">106,234</td><td class="num">104,984</td><td class="num sub">65,048</td><td class="num">1.60</td><td class="num">13.5<em>&thinsp;5.0&times;</em></td><td class="costcell"><span class="costtrack" title="moe_shared__n_experts8_top_k2: 13.5 min of GPU against a 15 min read"><i class="io" style="left:62.5%"></i><i class="cb  " style="width:54.5%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared__n_experts16_top_k4">moe_shared__n_experts16_top_k4</a><span>shared + 16 experts, top-4</span></td><td class="num">160,874</td><td class="num">158,768</td><td class="num sub">78,896</td><td class="num">0.91</td><td class="num">23.8<em>&thinsp;8.8&times;</em></td><td class="costcell"><span class="costtrack" title="moe_shared__n_experts16_top_k4: 23.8 min of GPU against a 15 min read"><i class="io" style="left:62.5%"></i><i class="cb  over" style="width:96.0%"></i></span></td></tr><tr class=""><td class="nm"><a href="#mod_depth">mod_depth</a><span>adaptive depth, capacity 0.5</span></td><td class="num">84,876</td><td class="num">84,224</td><td class="num sub">68,332</td><td class="num">4.54</td><td class="num">4.8<em>&thinsp;1.8&times;</em></td><td class="costcell"><span class="costtrack" title="mod_depth: 4.8 min of GPU against a 15 min read"><i class="io" style="left:62.5%"></i><i class="cb  " style="width:19.2%"></i></span></td></tr></tbody></table></div>
+<p class="clegend"><i class="sw bar"></i>GPU time, 5-seed ensemble
+<i class="sw io"></i>read ceiling (15 min at 1.4 M px/s)
+<i class="sw over"></i>model is now the bottleneck
+<span>On the CIFS P-drive the read alone is 108 min and every arm here disappears behind it. With no GPU at all the same six take 83–391 min of compute, and the choice stops being free anywhere.</span></p>
+
+<h2>The val gain is capacity, not locality</h2>
+<p class="note">Inner-val F1 (hollow) against held-out-region F1 (solid), for every
+locality arm plus two references: the deployed baseline, and <code>ctrl_capacity</code>
+— a plain MLP with no router at all, widened to the MoE's 78k parameters. Every
+locality arm lifts val by 0.013 to 0.018 and moves the held-out region by nothing,
+which looks like locality being learned and then failing to cross the fold boundary.
+The control says otherwise: it reaches val 0.8121 on its own, and on fold 1 it beats
+the MoE's val outright. Of the MoE's +0.0178 val gain, capacity owns +0.0147 and
+routing +0.0031; on test the split is +0.0007 and +0.0016. Routing's share of both
+sits inside the noise floor.</p>
+<div class="scroll"><table>
+<thead><tr><th>trial</th><th class="num">inner val</th><th class="num">held-out</th>
+<th class="num">gap</th><th>val vs held-out</th></tr></thead>
+<tbody><tr class=""><td class="nm"><a href="#moe_lora">moe_lora</a></td><td class="num">0.8418</td><td class="num">0.7416</td><td class="num delta drop">+0.1002</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:8.2%;width:87.4%"></i><i class="pt test" style="left:8.2%"></i><i class="pt val" style="left:95.6%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared__expert_h1128_expert_h264">moe_shared__expert_h1128_expert_h264</a></td><td class="num">0.8329</td><td class="num">0.7430</td><td class="num delta drop">+0.0899</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.4%;width:78.4%"></i><i class="pt test" style="left:9.4%"></i><i class="pt val" style="left:87.9%"></i></span></td></tr><tr class=""><td class="nm"><a href="#film_hyper">film_hyper</a></td><td class="num">0.8283</td><td class="num">0.7397</td><td class="num delta drop">+0.0886</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:6.5%;width:77.3%"></i><i class="pt test" style="left:6.5%"></i><i class="pt val" style="left:83.9%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared__n_experts16_top_k4">moe_shared__n_experts16_top_k4</a></td><td class="num">0.8248</td><td class="num">0.7447</td><td class="num delta drop">+0.0801</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:10.9%;width:69.9%"></i><i class="pt test" style="left:10.9%"></i><i class="pt val" style="left:80.8%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared__n_experts8_top_k2">moe_shared__n_experts8_top_k2</a></td><td class="num">0.8236</td><td class="num">0.7453</td><td class="num delta drop">+0.0783</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:11.4%;width:68.3%"></i><i class="pt test" style="left:11.4%"></i><i class="pt val" style="left:79.8%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_geo">moe_geo</a></td><td class="num">0.8168</td><td class="num">0.7428</td><td class="num delta drop">+0.0740</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.2%;width:64.6%"></i><i class="pt test" style="left:9.2%"></i><i class="pt val" style="left:73.8%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_auxbal">moe_auxbal</a></td><td class="num">0.8142</td><td class="num">0.7427</td><td class="num delta drop">+0.0715</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.2%;width:62.4%"></i><i class="pt test" style="left:9.2%"></i><i class="pt val" style="left:71.6%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared">moe_shared</a></td><td class="num">0.8152</td><td class="num">0.7437</td><td class="num delta drop">+0.0715</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:10.0%;width:62.4%"></i><i class="pt test" style="left:10.0%"></i><i class="pt val" style="left:72.4%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_shared__zero_init0">moe_shared__zero_init0</a></td><td class="num">0.8153</td><td class="num">0.7438</td><td class="num delta drop">+0.0715</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:10.1%;width:62.4%"></i><i class="pt test" style="left:10.1%"></i><i class="pt val" style="left:72.5%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_auxbal__aux_lam0p001">moe_auxbal__aux_lam0p001</a></td><td class="num">0.8142</td><td class="num">0.7432</td><td class="num delta drop">+0.0710</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.6%;width:62.0%"></i><i class="pt test" style="left:9.6%"></i><i class="pt val" style="left:71.6%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_lossfree">moe_lossfree</a></td><td class="num">0.8136</td><td class="num">0.7434</td><td class="num delta drop">+0.0702</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.8%;width:61.3%"></i><i class="pt test" style="left:9.8%"></i><i class="pt val" style="left:71.0%"></i></span></td></tr><tr class=""><td class="nm"><a href="#ctrl_capacity">ctrl_capacity</a></td><td class="num">0.8121</td><td class="num">0.7421</td><td class="num delta drop">+0.0700</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:8.6%;width:61.1%"></i><i class="pt test" style="left:8.6%"></i><i class="pt val" style="left:69.7%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_lossfree__bias_gamma0p01">moe_lossfree__bias_gamma0p01</a></td><td class="num">0.8142</td><td class="num">0.7443</td><td class="num delta drop">+0.0699</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:10.6%;width:61.0%"></i><i class="pt test" style="left:10.6%"></i><i class="pt val" style="left:71.6%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_terrain">moe_terrain</a></td><td class="num">0.8110</td><td class="num">0.7414</td><td class="num delta drop">+0.0696</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:8.0%;width:60.7%"></i><i class="pt test" style="left:8.0%"></i><i class="pt val" style="left:68.8%"></i></span></td></tr><tr class=""><td class="nm"><a href="#mod_depth__capacity0p75">mod_depth__capacity0p75</a></td><td class="num">0.8125</td><td class="num">0.7430</td><td class="num delta drop">+0.0695</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.4%;width:60.6%"></i><i class="pt test" style="left:9.4%"></i><i class="pt val" style="left:70.1%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_echoice">moe_echoice</a></td><td class="num">0.8118</td><td class="num">0.7439</td><td class="num delta drop">+0.0679</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:10.2%;width:59.2%"></i><i class="pt test" style="left:10.2%"></i><i class="pt val" style="left:69.5%"></i></span></td></tr><tr class=""><td class="nm"><a href="#mod_depth">mod_depth</a></td><td class="num">0.8040</td><td class="num">0.7441</td><td class="num delta drop">+0.0599</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:10.4%;width:52.3%"></i><i class="pt test" style="left:10.4%"></i><i class="pt val" style="left:62.7%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_soup">moe_soup</a></td><td class="num">0.7974</td><td class="num">0.7396</td><td class="num delta drop">+0.0578</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:6.5%;width:50.4%"></i><i class="pt test" style="left:6.5%"></i><i class="pt val" style="left:56.9%"></i></span></td></tr><tr class=""><td class="nm"><a href="#moe_soup__n_regions1">moe_soup__n_regions1</a></td><td class="num">0.7974</td><td class="num">0.7406</td><td class="num delta drop">+0.0568</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:7.3%;width:49.6%"></i><i class="pt test" style="left:7.3%"></i><i class="pt val" style="left:56.9%"></i></span></td></tr><tr class="base"><td class="nm"><a href="#baseline">baseline</a></td><td class="num">0.7974</td><td class="num">0.7414</td><td class="num delta drop">+0.0560</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:8.0%;width:48.9%"></i><i class="pt test" style="left:8.0%"></i><i class="pt val" style="left:56.9%"></i></span></td></tr><tr class=""><td class="nm"><a href="#mod_depth__capacity0p25">mod_depth__capacity0p25</a></td><td class="num">0.7974</td><td class="num">0.7431</td><td class="num delta drop">+0.0543</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:9.5%;width:47.4%"></i><i class="pt test" style="left:9.5%"></i><i class="pt val" style="left:56.9%"></i></span></td></tr><tr class="base"><td class="nm"><a href="#baseline_gval">baseline_gval</a></td><td class="num">0.7455</td><td class="num">0.7372</td><td class="num delta drop">+0.0083</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:4.4%;width:7.2%"></i><i class="pt test" style="left:4.4%"></i><i class="pt val" style="left:11.6%"></i></span></td></tr><tr class=""><td class="nm"><a href="#knn_retrieval">knn_retrieval</a></td><td class="num">0.7455</td><td class="num">0.7384</td><td class="num delta drop">+0.0071</td><td class="gapcell"><span class="gaptrack"><i class="seg" style="left:5.4%;width:6.2%"></i><i class="pt test" style="left:5.4%"></i><i class="pt val" style="left:11.6%"></i></span></td></tr></tbody></table></div>
+
+<h2>Did the router survive the fold boundary?</h2>
+<p class="note">Share of rows landing on the single busiest expert, on the training
+rows and then on the held-out region, averaged over folds. stage7's hard spatial
+gate put 84-95&#37; of a held-out fold on one expert — that is the failure this
+column exists to detect. Normalised entropy is 1.00 for perfectly even use of all
+experts and 0.00 for total collapse.</p>
+<div class="scroll"><table>
+<thead><tr><th>trial</th><th>gate reads</th><th class="num">train max share</th>
+<th class="num">held-out max share</th><th class="num">entropy</th>
+<th class="num">Δ paired</th></tr></thead>
+<tbody><tr><td><a href="#moe_shared__n_experts16_top_k4">moe_shared__n_experts16_top_k4</a></td><td class="tier">content</td><td class="num">0.23</td><td class="num">0.23</td><td class="num">0.86</td><td class="num">+0.0033</td></tr><tr><td><a href="#moe_shared__n_experts8_top_k2">moe_shared__n_experts8_top_k2</a></td><td class="tier">content</td><td class="num">0.26</td><td class="num">0.25</td><td class="num">0.93</td><td class="num">+0.0040</td></tr><tr><td><a href="#moe_auxbal">moe_auxbal</a></td><td class="tier">content</td><td class="num">0.33</td><td class="num">0.32</td><td class="num">0.99</td><td class="num">+0.0013</td></tr><tr><td><a href="#moe_echoice">moe_echoice</a></td><td class="tier">content</td><td class="num">0.32</td><td class="num">0.32</td><td class="num">0.98</td><td class="num">+0.0026</td></tr><tr><td><a href="#moe_auxbal__aux_lam0p001">moe_auxbal__aux_lam0p001</a></td><td class="tier">content</td><td class="num">0.34</td><td class="num">0.33</td><td class="num">0.98</td><td class="num">+0.0018</td></tr><tr><td><a href="#moe_lora">moe_lora</a></td><td class="tier">content</td><td class="num">0.34</td><td class="num">0.34</td><td class="num">0.97</td><td class="num">+0.0003</td></tr><tr><td><a href="#moe_lossfree">moe_lossfree</a></td><td class="tier">content</td><td class="num">0.35</td><td class="num">0.34</td><td class="num">0.97</td><td class="num">+0.0020</td></tr><tr><td><a href="#moe_shared__zero_init0">moe_shared__zero_init0</a></td><td class="tier">content</td><td class="num">0.35</td><td class="num">0.35</td><td class="num">0.97</td><td class="num">+0.0024</td></tr><tr><td><a href="#moe_geo">moe_geo</a></td><td class="tier">geo</td><td class="num">0.35</td><td class="num">0.35</td><td class="num">0.93</td><td class="num">+0.0014</td></tr><tr><td><a href="#moe_lossfree__bias_gamma0p01">moe_lossfree__bias_gamma0p01</a></td><td class="tier">content</td><td class="num">0.37</td><td class="num">0.37</td><td class="num">0.96</td><td class="num">+0.0029</td></tr><tr><td><a href="#moe_shared">moe_shared</a></td><td class="tier">content</td><td class="num">0.37</td><td class="num">0.37</td><td class="num">0.96</td><td class="num">+0.0023</td></tr><tr><td><a href="#replication_seed1_moe_shared">replication_seed1_moe_shared</a></td><td class="tier">content</td><td class="num">0.38</td><td class="num">0.38</td><td class="num">0.94</td><td class="num">+0.0016</td></tr><tr><td><a href="#moe_shared__expert_h1128_expert_h264">moe_shared__expert_h1128_expert_h264</a></td><td class="tier">content</td><td class="num">0.41</td><td class="num">0.40</td><td class="num">0.96</td><td class="num">+0.0016</td></tr><tr><td><a href="#moe_terrain">moe_terrain</a></td><td class="tier">terrain</td><td class="num">0.47</td><td class="num">0.47</td><td class="num">0.87</td><td class="num">+0.0001</td></tr></tbody></table></div>
+
+<h2>What a local label is actually worth</h2>
+<p class="note">Labels bought inside the held-out region, in whole cells because a
+field crew visits places rather than pixels, and scored on evaluation cells that no
+arm ever trains on. The x axis is cells surveyed (1 cell ≈ 4,172 rows · 4 cells ≈ 13,473 rows · 16 cells ≈ 49,546 rows · 32 cells ≈ 94,751 rows); bars are paired
+against that fold's global model · global model on the same rows: 0.729, 0.752, 0.738. Where the first panel crosses zero —
+where a model trained on nothing but local labels overtakes one trained on 440k
+labels from everywhere else — is the honest price of "local beats global".</p>
+<div class="lpanel"><div class="lgrp"><h4>local model only</h4><div class="lbars"><div class="lb"><div class="lbw"><i class="dn" style="height:40.0px" title="-0.4161 ± 0.2025"></i></div><span class="lv">-0.416</span><span class="lx">1</span></div><div class="lb"><div class="lbw"><i class="dn" style="height:24.7px" title="-0.2573 ± 0.0849"></i></div><span class="lv">-0.257</span><span class="lx">4</span></div><div class="lb"><div class="lbw"><i class="dn" style="height:10.2px" title="-0.1057 ± 0.0213"></i></div><span class="lv">-0.106</span><span class="lx">16</span></div><div class="lb"><div class="lbw"><i class="dn" style="height:3.9px" title="-0.0403 ± 0.0138"></i></div><span class="lv">-0.040</span><span class="lx">32</span></div></div></div><div class="lgrp"><h4>global, fine-tuned locally</h4><div class="lbars"><div class="lb"><div class="lbw"><i class="dn" style="height:2.5px" title="-0.0256 ± 0.0233"></i></div><span class="lv">-0.026</span><span class="lx">1</span></div><div class="lb"><div class="lbw"><i class="dn" style="height:7.0px" title="-0.0728 ± 0.0164"></i></div><span class="lv">-0.073</span><span class="lx">4</span></div><div class="lb"><div class="lbw"><i class="dn" style="height:5.0px" title="-0.0515 ± 0.0223"></i></div><span class="lv">-0.051</span><span class="lx">16</span></div><div class="lb"><div class="lbw"><i class="dn" style="height:1.6px" title="-0.0171 ± 0.0081"></i></div><span class="lv">-0.017</span><span class="lx">32</span></div></div></div><div class="lgrp"><h4>retrained on both</h4><div class="lbars"><div class="lb"><div class="lbw"><i class="up" style="height:0.2px" title="+0.0020 ± 0.0007"></i></div><span class="lv">+0.002</span><span class="lx">1</span></div><div class="lb"><div class="lbw"><i class="up" style="height:0.3px" title="+0.0030 ± 0.0017"></i></div><span class="lv">+0.003</span><span class="lx">4</span></div><div class="lb"><div class="lbw"><i class="up" style="height:0.0px" title="+0.0003 ± 0.0035"></i></div><span class="lv">+0.000</span><span class="lx">16</span></div><div class="lb"><div class="lbw"><i class="up" style="height:0.0px" title="+0.0004 ± 0.0027"></i></div><span class="lv">+0.000</span><span class="lx">32</span></div></div></div></div>
+
+<h2>Where each class moved</h2>
+<p class="note">Baseline per-class F1, weakest first. Red left edge marks the four
+classes this search is for. A column that is green at the top and red at the bottom
+is a trade, not a win. Every cell is the paired Δ against the baseline's own
+per-class score, all on one colour scale — which is why the two floor columns are
+solid and the six trial columns are nearly blank. The deep net's margin over a
+linear probe is largest on exactly the classes the search is for: rock/sand
+&minus;0.087, grassland &minus;0.054, wetland &minus;0.047. The best weak-class
+gain anywhere in the right-hand group is +0.005 on scrub, against a
+&minus;0.032 probe deficit on that same class. The forest is not a uniformly worse
+probe — it is <em>better</em> on rock/sand (&minus;0.045) and scrub
+(&minus;0.013) and then collapses on grassland (&minus;0.103) and snow/ice
+(&minus;0.131), the two classes whose boundaries are least axis-aligned. Snow/ice
+is also the one class the search does move (+0.02 to +0.05 across the group), so
+the single thing eleven locality mechanisms found is the single thing a forest gets
+most wrong.</p>
+<div class="scroll"><table class="matrix">
+<thead><tr class="grp"><td></td><td></td><td class="gl edge" colspan="2">what the deep net buys</td><td class="gl edge" colspan="6">what the search moved</td></tr><tr><th>class</th><th class="num">baseline</th><th class="colhead flr edge"><span>linear probe</span></th><th class="colhead flr"><span>tuned RF</span></th><th class="colhead edge"><span>moe_shared__n_experts8_top_k2</span></th><th class="colhead"><span>moe_shared__n_experts16_top_k4</span></th><th class="colhead"><span>moe_lossfree__bias_gamma0p01</span></th><th class="colhead"><span>combo_opt_schedulefree_act_xielu</span></th><th class="colhead"><span>mod_depth</span></th><th class="colhead"><span>moe_echoice</span></th></tr></thead>
+<tbody><tr><th class="cls weak"><b>rock / sand</b><span>2</span></th><td class="num base">0.551</td><td class="cell n flr edge" style="--a:1.00" title="probe_linear class 2: -0.0867 (F1 0.464 vs baseline 0.551)">-0.087</td><td class="cell n flr" style="--a:1.00" title="rf_tuned class 2: -0.0448 (F1 0.506 vs baseline 0.551)">-0.045</td><td class="cell z edge" style="--a:0.01" title="moe_shared__n_experts8_top_k2 class 2: -0.0002 (F1 0.551 vs baseline 0.551)">-0.000</td><td class="cell n " style="--a:0.16" title="moe_shared__n_experts16_top_k4 class 2: -0.0049 (F1 0.546 vs baseline 0.551)">-0.005</td><td class="cell p " style="--a:0.08" title="moe_lossfree__bias_gamma0p01 class 2: +0.0023 (F1 0.553 vs baseline 0.551)">+0.002</td><td class="cell n " style="--a:0.19" title="combo_opt_schedulefree_act_xielu class 2: -0.0058 (F1 0.545 vs baseline 0.551)">-0.006</td><td class="cell p " style="--a:0.08" title="mod_depth class 2: +0.0023 (F1 0.553 vs baseline 0.551)">+0.002</td><td class="cell z " style="--a:0.02" title="moe_echoice class 2: -0.0005 (F1 0.550 vs baseline 0.551)">-0.001</td></tr><tr><th class="cls weak"><b>grassland</b><span>5</span></th><td class="num base">0.597</td><td class="cell n flr edge" style="--a:1.00" title="probe_linear class 5: -0.0537 (F1 0.544 vs baseline 0.597)">-0.054</td><td class="cell n flr" style="--a:1.00" title="rf_tuned class 5: -0.1027 (F1 0.495 vs baseline 0.597)">-0.103</td><td class="cell n edge" style="--a:0.04" title="moe_shared__n_experts8_top_k2 class 5: -0.0013 (F1 0.596 vs baseline 0.597)">-0.001</td><td class="cell n " style="--a:0.09" title="moe_shared__n_experts16_top_k4 class 5: -0.0026 (F1 0.595 vs baseline 0.597)">-0.003</td><td class="cell z " style="--a:0.02" title="moe_lossfree__bias_gamma0p01 class 5: +0.0005 (F1 0.598 vs baseline 0.597)">+0.001</td><td class="cell p " style="--a:0.10" title="combo_opt_schedulefree_act_xielu class 5: +0.0030 (F1 0.600 vs baseline 0.597)">+0.003</td><td class="cell p " style="--a:0.09" title="mod_depth class 5: +0.0027 (F1 0.600 vs baseline 0.597)">+0.003</td><td class="cell z " style="--a:0.00" title="moe_echoice class 5: +0.0001 (F1 0.597 vs baseline 0.597)">+0.000</td></tr><tr><th class="cls weak"><b>scrub</b><span>6</span></th><td class="num base">0.661</td><td class="cell n flr edge" style="--a:1.00" title="probe_linear class 6: -0.0321 (F1 0.629 vs baseline 0.661)">-0.032</td><td class="cell n flr" style="--a:0.45" title="rf_tuned class 6: -0.0135 (F1 0.648 vs baseline 0.661)">-0.013</td><td class="cell p edge" style="--a:0.14" title="moe_shared__n_experts8_top_k2 class 6: +0.0041 (F1 0.665 vs baseline 0.661)">+0.004</td><td class="cell p " style="--a:0.09" title="moe_shared__n_experts16_top_k4 class 6: +0.0026 (F1 0.664 vs baseline 0.661)">+0.003</td><td class="cell p " style="--a:0.10" title="moe_lossfree__bias_gamma0p01 class 6: +0.0030 (F1 0.664 vs baseline 0.661)">+0.003</td><td class="cell p " style="--a:0.16" title="combo_opt_schedulefree_act_xielu class 6: +0.0047 (F1 0.666 vs baseline 0.661)">+0.005</td><td class="cell p " style="--a:0.08" title="mod_depth class 6: +0.0023 (F1 0.663 vs baseline 0.661)">+0.002</td><td class="cell p " style="--a:0.11" title="moe_echoice class 6: +0.0033 (F1 0.664 vs baseline 0.661)">+0.003</td></tr><tr><th class="cls weak"><b>wetland</b><span>7</span></th><td class="num base">0.691</td><td class="cell n flr edge" style="--a:1.00" title="probe_linear class 7: -0.0472 (F1 0.644 vs baseline 0.691)">-0.047</td><td class="cell n flr" style="--a:1.00" title="rf_tuned class 7: -0.0656 (F1 0.626 vs baseline 0.691)">-0.066</td><td class="cell z edge" style="--a:0.01" title="moe_shared__n_experts8_top_k2 class 7: -0.0003 (F1 0.691 vs baseline 0.691)">-0.000</td><td class="cell n " style="--a:0.04" title="moe_shared__n_experts16_top_k4 class 7: -0.0012 (F1 0.690 vs baseline 0.691)">-0.001</td><td class="cell n " style="--a:0.02" title="moe_lossfree__bias_gamma0p01 class 7: -0.0006 (F1 0.691 vs baseline 0.691)">-0.001</td><td class="cell n " style="--a:0.04" title="combo_opt_schedulefree_act_xielu class 7: -0.0011 (F1 0.690 vs baseline 0.691)">-0.001</td><td class="cell p " style="--a:0.04" title="mod_depth class 7: +0.0012 (F1 0.693 vs baseline 0.691)">+0.001</td><td class="cell n " style="--a:0.03" title="moe_echoice class 7: -0.0009 (F1 0.690 vs baseline 0.691)">-0.001</td></tr><tr><th class="cls strong"><b>forest</b><span>4</span></th><td class="num base">0.744</td><td class="cell n flr edge" style="--a:0.82" title="probe_linear class 4: -0.0247 (F1 0.719 vs baseline 0.744)">-0.025</td><td class="cell n flr" style="--a:0.72" title="rf_tuned class 4: -0.0215 (F1 0.722 vs baseline 0.744)">-0.021</td><td class="cell n edge" style="--a:0.05" title="moe_shared__n_experts8_top_k2 class 4: -0.0014 (F1 0.742 vs baseline 0.744)">-0.001</td><td class="cell n " style="--a:0.08" title="moe_shared__n_experts16_top_k4 class 4: -0.0024 (F1 0.741 vs baseline 0.744)">-0.002</td><td class="cell n " style="--a:0.03" title="moe_lossfree__bias_gamma0p01 class 4: -0.0010 (F1 0.743 vs baseline 0.744)">-0.001</td><td class="cell z " style="--a:0.01" title="combo_opt_schedulefree_act_xielu class 4: +0.0004 (F1 0.744 vs baseline 0.744)">+0.000</td><td class="cell n " style="--a:0.04" title="mod_depth class 4: -0.0013 (F1 0.742 vs baseline 0.744)">-0.001</td><td class="cell z " style="--a:0.01" title="moe_echoice class 4: -0.0002 (F1 0.743 vs baseline 0.744)">-0.000</td></tr><tr><th class="cls strong"><b>sparse veg</b><span>11</span></th><td class="num base">0.778</td><td class="cell n flr edge" style="--a:0.76" title="probe_linear class 11: -0.0227 (F1 0.755 vs baseline 0.778)">-0.023</td><td class="cell n flr" style="--a:0.92" title="rf_tuned class 11: -0.0276 (F1 0.750 vs baseline 0.778)">-0.028</td><td class="cell n edge" style="--a:0.04" title="moe_shared__n_experts8_top_k2 class 11: -0.0013 (F1 0.776 vs baseline 0.778)">-0.001</td><td class="cell n " style="--a:0.10" title="moe_shared__n_experts16_top_k4 class 11: -0.0030 (F1 0.775 vs baseline 0.778)">-0.003</td><td class="cell n " style="--a:0.03" title="moe_lossfree__bias_gamma0p01 class 11: -0.0008 (F1 0.777 vs baseline 0.778)">-0.001</td><td class="cell z " style="--a:0.00" title="combo_opt_schedulefree_act_xielu class 11: -0.0000 (F1 0.778 vs baseline 0.778)">-0.000</td><td class="cell n " style="--a:0.03" title="mod_depth class 11: -0.0008 (F1 0.777 vs baseline 0.778)">-0.001</td><td class="cell n " style="--a:0.02" title="moe_echoice class 11: -0.0006 (F1 0.777 vs baseline 0.778)">-0.001</td></tr><tr><th class="cls strong"><b>crop</b><span>3</span></th><td class="num base">0.787</td><td class="cell n flr edge" style="--a:0.91" title="probe_linear class 3: -0.0274 (F1 0.760 vs baseline 0.787)">-0.027</td><td class="cell n flr" style="--a:1.00" title="rf_tuned class 3: -0.0329 (F1 0.754 vs baseline 0.787)">-0.033</td><td class="cell z edge" style="--a:0.02" title="moe_shared__n_experts8_top_k2 class 3: -0.0005 (F1 0.787 vs baseline 0.787)">-0.001</td><td class="cell z " style="--a:0.02" title="moe_shared__n_experts16_top_k4 class 3: -0.0005 (F1 0.787 vs baseline 0.787)">-0.001</td><td class="cell z " style="--a:0.02" title="moe_lossfree__bias_gamma0p01 class 3: +0.0005 (F1 0.788 vs baseline 0.787)">+0.001</td><td class="cell p " style="--a:0.03" title="combo_opt_schedulefree_act_xielu class 3: +0.0008 (F1 0.788 vs baseline 0.787)">+0.001</td><td class="cell p " style="--a:0.03" title="mod_depth class 3: +0.0009 (F1 0.788 vs baseline 0.787)">+0.001</td><td class="cell z " style="--a:0.01" title="moe_echoice class 3: +0.0003 (F1 0.788 vs baseline 0.787)">+0.000</td></tr><tr><th class="cls strong"><b>snow / ice</b><span>12</span></th><td class="num base">0.802</td><td class="cell n flr edge" style="--a:1.00" title="probe_linear class 12: -0.0340 (F1 0.768 vs baseline 0.802)">-0.034</td><td class="cell n flr" style="--a:1.00" title="rf_tuned class 12: -0.1314 (F1 0.671 vs baseline 0.802)">-0.131</td><td class="cell p edge" style="--a:1.00" title="moe_shared__n_experts8_top_k2 class 12: +0.0404 (F1 0.843 vs baseline 0.802)">+0.040</td><td class="cell p " style="--a:1.00" title="moe_shared__n_experts16_top_k4 class 12: +0.0461 (F1 0.848 vs baseline 0.802)">+0.046</td><td class="cell p " style="--a:0.84" title="moe_lossfree__bias_gamma0p01 class 12: +0.0252 (F1 0.827 vs baseline 0.802)">+0.025</td><td class="cell p " style="--a:0.87" title="combo_opt_schedulefree_act_xielu class 12: +0.0261 (F1 0.828 vs baseline 0.802)">+0.026</td><td class="cell p " style="--a:0.61" title="mod_depth class 12: +0.0183 (F1 0.821 vs baseline 0.802)">+0.018</td><td class="cell p " style="--a:0.81" title="moe_echoice class 12: +0.0242 (F1 0.826 vs baseline 0.802)">+0.024</td></tr><tr><th class="cls strong"><b>built</b><span>10</span></th><td class="num base">0.849</td><td class="cell n flr edge" style="--a:1.00" title="probe_linear class 10: -0.0366 (F1 0.812 vs baseline 0.849)">-0.037</td><td class="cell n flr" style="--a:0.80" title="rf_tuned class 10: -0.0240 (F1 0.825 vs baseline 0.849)">-0.024</td><td class="cell z edge" style="--a:0.00" title="moe_shared__n_experts8_top_k2 class 10: +0.0001 (F1 0.849 vs baseline 0.849)">+0.000</td><td class="cell n " style="--a:0.05" title="moe_shared__n_experts16_top_k4 class 10: -0.0014 (F1 0.847 vs baseline 0.849)">-0.001</td><td class="cell z " style="--a:0.02" title="moe_lossfree__bias_gamma0p01 class 10: -0.0005 (F1 0.848 vs baseline 0.849)">-0.001</td><td class="cell z " style="--a:0.01" title="combo_opt_schedulefree_act_xielu class 10: +0.0002 (F1 0.849 vs baseline 0.849)">+0.000</td><td class="cell p " style="--a:0.05" title="mod_depth class 10: +0.0016 (F1 0.850 vs baseline 0.849)">+0.002</td><td class="cell n " style="--a:0.02" title="moe_echoice class 10: -0.0007 (F1 0.848 vs baseline 0.849)">-0.001</td></tr><tr><th class="cls strong"><b>water</b><span>8</span></th><td class="num base">0.954</td><td class="cell n flr edge" style="--a:0.27" title="probe_linear class 8: -0.0082 (F1 0.946 vs baseline 0.954)">-0.008</td><td class="cell n flr" style="--a:0.15" title="rf_tuned class 8: -0.0046 (F1 0.949 vs baseline 0.954)">-0.005</td><td class="cell z edge" style="--a:0.00" title="moe_shared__n_experts8_top_k2 class 8: -0.0001 (F1 0.954 vs baseline 0.954)">-0.000</td><td class="cell z " style="--a:0.01" title="moe_shared__n_experts16_top_k4 class 8: +0.0002 (F1 0.954 vs baseline 0.954)">+0.000</td><td class="cell z " style="--a:0.01" title="moe_lossfree__bias_gamma0p01 class 8: +0.0002 (F1 0.954 vs baseline 0.954)">+0.000</td><td class="cell z " style="--a:0.00" title="combo_opt_schedulefree_act_xielu class 8: +0.0001 (F1 0.954 vs baseline 0.954)">+0.000</td><td class="cell z " style="--a:0.01" title="mod_depth class 8: +0.0004 (F1 0.954 vs baseline 0.954)">+0.000</td><td class="cell z " style="--a:0.02" title="moe_echoice class 8: +0.0005 (F1 0.954 vs baseline 0.954)">+0.001</td></tr></tbody></table></div>
+
+<h2>The log</h2>
+<p class="note">Every mechanism, what it changes, and why it might beat a model
+whose ceiling has already survived capacity, data, regularisation, routing and
+ensembling. Hypotheses are recorded before the run, so a negative result still
+buys information.</p>
+<section class="tier-group">
+  <h3>reference</h3>
+  <p class="blurb">Controls. The paired baseline every delta is measured against, the no-class-weights arm the imbalance losses need, and the classical floor — a linear probe and a tuned forest on the same folds, which say how much of the score the deep net is responsible for in the first place.</p>
+  <div class="cards"><article class="card" id="ctrl_noweight">
+  <header><h4>ctrl_noweight</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">plain CE, no sqrt class weights</p>
+  <p class="hyp"><span>Hypothesis</span>control for the loss family below — those losses do their own imbalance correction, so they must be compared against no-weights, not against the sqrt-weighted deployed recipe</p>
+  
+  <p class="res">0.7380 &nbsp; Δ -0.0034 &nbsp; folds -0.0009, -0.0071, -0.0022</p>
+</article><article class="card" id="baseline_gval">
+  <header><h4>baseline_gval</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">baseline but the inner val is held out by whole cell_ids</p>
+  <p class="hyp"><span>Hypothesis</span>a spatially held-out inner val is a transfer estimate, so anything fitted on it (priors, thresholds, tau) has a chance of surviving the test fold; this run is the control for every decision-rule trial and supplies their probabilities</p>
+  
+  <p class="res">0.7372 &nbsp; Δ -0.0042 &nbsp; folds -0.0078, -0.0041, -0.0007</p>
+</article><article class="card" id="probe_linear">
+  <header><h4>probe_linear</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">multinomial logistic regression on the same 67 standardized features, C tuned on the inner val</p>
+  <p class="hyp"><span>Hypothesis</span>AlphaEarth is already a learned embedding, and the linear probe is the standard way to say what an embedding carries on its own. Whatever this scores is the share of the task that needed no nonlinearity; the deployed MLP&#x27;s margin over it is the whole value of the representation the network builds on top, and every tie in this round is a failure to add to THAT margin, not to the score</p>
+  <p class="prov">linear-probe evaluation protocol, standard in representation learning (Alain &amp; Bengio 2016)</p>
+  <p class="res">0.7040 &nbsp; Δ -0.0373 &nbsp; folds -0.0425, -0.0351, -0.0344</p>
+</article><article class="card" id="rf_tuned">
+  <header><h4>rf_tuned</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">random forest, 6-cell grid ranked on the inner val and refit at 500 trees — the classical model this project would otherwise ship</p>
+  <p class="hyp"><span>Hypothesis</span>the DNN replaced a CatBoost+TabICL stack, so &#x27;a deep net was needed here&#x27; is an assumption this round has been resting on without ever measuring it inside this harness. A tuned forest on identical folds, identical weights and identical features either supports it or does not. Trees also fail differently from an MLP under spatial shift — axis-aligned splits extrapolate to a held-out region worse than a smooth decision surface — so the gap should be widest exactly where this round has been stuck</p>
+  <p class="prov">Breiman 2001; the deployed-family control, cf. benchmark_tabular.py</p>
+  <p class="res">0.6945 &nbsp; Δ -0.0468 &nbsp; folds -0.0388, -0.0592, -0.0425</p>
+</article><article class="card" id="baseline">
+  <header><h4>baseline</h4><span class="chip ref">baseline</span></header>
+  <p class="idea">the deployed recipe, re-run inside this harness</p>
+  <p class="hyp"><span>Hypothesis</span>establishes the paired per-fold and per-class reference; every other trial is scored against THIS run, not a number copied from another script</p>
+  
+  <p class="res">baseline</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>locality</h3>
+  <p class="blurb">One global model or many local ones? Every MoE that lost here before routed on POSITION, which a held-out region cannot be placed inside. These route on content, on terrain, or on nothing at all — and each keeps the global model as an always-on shared expert instead of replacing it with a partition.</p>
+  <div class="cards"><article class="card" id="bound_region_oracle">
+  <header><h4>bound_region_oracle</h4><span class="chip bound">upper-bound</span></header>
+  <p class="idea">ceiling on regional specialisation: best single regional model and a per-row oracle over all of them, both chosen with test labels</p>
+  <p class="hyp"><span>Hypothesis</span>a null is only worth something next to its ceiling. If a PERFECT router over genuinely local models cannot beat the global one, no routing scheme in this round or any future one could have; if it beats it by a lot, the failure is the router rather than locality. This is the same instrument that closed the MoE question last time, when the oracle over ensemble members showed +0.063 of headroom no router could reach</p>
+  <p class="prov">oracle bound, cf. diag_ensemble.py&#x27;s member oracle</p>
+  <p class="res">0.8144 &nbsp; Δ +0.0730 &nbsp; folds +0.0700, +0.0716, +0.0775</p>
+</article><article class="card" id="mod_depth">
+  <header><h4>mod_depth</h4><span class="chip tie">tie</span></header>
+  <p class="idea">mixture-of-depths: a learned router sends the hardest 50% of rows through an extra residual block, the rest bypass it</p>
+  <p class="hyp"><span>Hypothesis</span>locality in DEPTH rather than in parameters. A water pixel is settled by the first layer and a crop/grassland pixel is not, yet a fixed net spends identical compute on both. Giving the contested rows more depth without giving the settled ones any is the one form of extra capacity the scaling study did not test — it found width converts into geographic memorisation, and this adds capacity only where the decision is actually close</p>
+  <p class="prov">Raposo et al., Mixture-of-Depths, 2024</p>
+  <p class="res">0.7441 &nbsp; Δ +0.0028 &nbsp; folds +0.0015, +0.0022, +0.0045</p>
+</article><article class="card" id="moe_echoice">
+  <header><h4>moe_echoice</h4><span class="chip tie">tie</span></header>
+  <p class="idea">expert-choice routing during training (each expert takes its top-C rows), per-row top-k at inference</p>
+  <p class="hyp"><span>Hypothesis</span>balance by construction rather than by penalty — no expert can starve, so every expert sees a full quarter of the data. The honest cost is that a row&#x27;s training-time routing depends on its batch, which cannot hold at inference; this arm measures whether perfect balance is worth that mismatch</p>
+  <p class="prov">Zhou et al., Mixture-of-Experts with Expert Choice Routing, NeurIPS 2022</p>
+  <p class="res">0.7439 &nbsp; Δ +0.0026 &nbsp; folds -0.0002, +0.0014, +0.0065</p>
+</article><article class="card" id="moe_shared">
+  <header><h4>moe_shared</h4><span class="chip tie">tie</span></header>
+  <p class="idea">always-on shared expert (the deployed MLP) + 4 fine-grained routed experts, top-2, router reads the row&#x27;s own features</p>
+  <p class="hyp"><span>Hypothesis</span>the nine MoE variants that lost here all REPLACED the global model with a partition of it; shared-expert isolation ADDS local capacity to a global model that is still trained on every row, and the routed experts start at zero so the network begins as the exact deployed model. If content-space locality carries anything, this is the arm that shows it</p>
+  <p class="prov">Dai et al., DeepSeekMoE, ACL 2024 (shared-expert isolation + fine-grained expert segmentation)</p>
+  <p class="res">0.7437 &nbsp; Δ +0.0023 &nbsp; folds +0.0002, +0.0014, +0.0053</p>
+</article><article class="card" id="moe_lossfree">
+  <header><h4>moe_lossfree</h4><span class="chip tie">tie</span></header>
+  <p class="idea">content-gated MoE with DeepSeek-V3 auxiliary-loss-free load balancing (per-expert selection bias nudged toward equal load)</p>
+  <p class="hyp"><span>Hypothesis</span>if the content gate still concentrates a held-out region on one expert, the fix is to balance the router — but a Switch aux loss buys balance by fighting the task loss. The bias trick balances selection while leaving every gradient the task loss produces untouched, so it separates &#x27;routing was unbalanced&#x27; from &#x27;routing was uninformative&#x27;</p>
+  <p class="prov">Wang et al., Auxiliary-Loss-Free Load Balancing / DeepSeek-V3</p>
+  <p class="res">0.7434 &nbsp; Δ +0.0020 &nbsp; folds -0.0007, -0.0011, +0.0078</p>
+</article><article class="card" id="moe_geo">
+  <header><h4>moe_geo</h4><span class="chip tie">tie</span></header>
+  <p class="idea">identical MoE, but the router may see ONLY lon/lat</p>
+  <p class="hyp"><span>Hypothesis</span>the control that makes this round interpretable. This is what stage7 did, and the prediction is that it collapses: a test fold is a region the router has never seen, so a coordinate partition must extrapolate and dumps the fold on one expert. A large gap between this and the content gate is the evidence that locality has to be defined in a transferable space; no gap means the gate source was never the problem</p>
+  <p class="prov">stage7_spatial_moe.py, reproduced as a paired control</p>
+  <p class="res">0.7428 &nbsp; Δ +0.0014 &nbsp; folds -0.0000, +0.0030, +0.0013</p>
+</article><article class="card" id="moe_auxbal">
+  <header><h4>moe_auxbal</h4><span class="chip tie">tie</span></header>
+  <p class="idea">content-gated MoE with the Switch load-balance loss + ST-MoE router z-loss</p>
+  <p class="hyp"><span>Hypothesis</span>the orthodox balancing recipe, run as the matched comparison for the loss-free arm. Same balance target, different price: this one perturbs the task gradient, and z-loss additionally keeps router logits from drifting to the saturated regime where top-k stops responding to the input</p>
+  <p class="prov">Fedus et al., Switch Transformer, JMLR 2022; Zoph et al., ST-MoE, 2022 (router z-loss)</p>
+  <p class="res">0.7427 &nbsp; Δ +0.0013 &nbsp; folds -0.0007, +0.0001, +0.0046</p>
+</article><article class="card" id="ctrl_capacity">
+  <header><h4>ctrl_capacity</h4><span class="chip tie">tie</span></header>
+  <p class="idea">plain MLP widened to 320,170 — the MoE&#x27;s parameter count, with no router, no experts and no locality of any kind</p>
+  <p class="hyp"><span>Hypothesis</span>the control that decides how to read this entire round. The locality arms lift inner val and leave the held-out region flat, which sounds like &#x27;learned but not transferable&#x27; — but the scaling study showed plain width does exactly that too, and these arms carry 27k extra parameters. Whatever this control&#x27;s val gain is, the locality arms only own the part above it</p>
+  <p class="prov">matched-capacity control, cf. scaling_grid.py</p>
+  <p class="res">0.7421 &nbsp; Δ +0.0007 &nbsp; folds -0.0004, +0.0011, +0.0015</p>
+</article><article class="card" id="moe_lora">
+  <header><h4>moe_lora</h4><span class="chip tie">tie</span></header>
+  <p class="idea">one global trunk; every Linear carries 4 routed rank-8 LoRA adapters combined per row by a content router</p>
+  <p class="hyp"><span>Hypothesis</span>the sharpest form of &#x27;global model plus local correction&#x27;. The shared weights stay global and full-rank; locality is confined to a rank-8 subspace per expert, so an expert cannot wander off into its own model the way a full-capacity expert can. B is zero-initialised, so this is exactly the deployed network plus a correction that has to earn every unit it moves</p>
+  <p class="prov">Hu et al., LoRA, ICLR 2022; Dou et al., LoRAMoE, ACL 2024</p>
+  <p class="res">0.7416 &nbsp; Δ +0.0003 &nbsp; folds -0.0027, +0.0002, +0.0033</p>
+</article><article class="card" id="moe_terrain">
+  <header><h4>moe_terrain</h4><span class="chip tie">tie</span></header>
+  <p class="idea">identical MoE, router reads only elevation / tri / tch</p>
+  <p class="hyp"><span>Hypothesis</span>the explicitly untried idea left over from stage7. Terrain is PHYSICAL: 900 m of elevation means the same thing in Vestland as in Rogaland, whereas a coordinate does not. It is also the feature family that demonstrably transfers here (real minus median lidar is worth +0.009). A partition on terrain is a partition an unseen region can land inside</p>
+  
+  <p class="res">0.7414 &nbsp; Δ +0.0001 &nbsp; folds -0.0016, -0.0001, +0.0018</p>
+</article><article class="card" id="film_hyper">
+  <header><h4>film_hyper</h4><span class="chip tie">tie</span></header>
+  <p class="idea">a hypernetwork reads the terrain context and emits per-row FiLM (gamma, beta) modulating every hidden layer</p>
+  <p class="hyp"><span>Hypothesis</span>the continuous limit of this whole round: rather than pick among N local models, generate one per row. No partition to extrapolate, no expert to starve, and the failure mode of every hard-routed arm is structurally absent. Zero-init means gamma=1, beta=0 at step 0, so it starts as the deployed model and any movement is modulation the data asked for</p>
+  <p class="prov">Perez et al., FiLM, AAAI 2018; conditional adapters / hypernetwork conditioning in modern LLM PEFT</p>
+  <p class="res">0.7397 &nbsp; Δ -0.0016 &nbsp; folds -0.0020, -0.0047, +0.0018</p>
+</article><article class="card" id="moe_soup">
+  <header><h4>moe_soup</h4><span class="chip tie">tie</span></header>
+  <p class="idea">fine-tune one copy of the global model per KMeans region, then average the copies in weight space</p>
+  <p class="hyp"><span>Hypothesis</span>the literal claim under test — build genuinely local models, then merge them so the result is still deployable to regions none of them owns. Merging removes the router, so this is the one way to buy regional specialisation without paying the extrapolation cost that sank the position-gated MoE</p>
+  <p class="prov">Wortsman et al., Model Soups, ICML 2022 (model merging)</p>
+  <p class="res">0.7396 &nbsp; Δ -0.0017 &nbsp; folds -0.0010, -0.0035, -0.0008</p>
+</article><article class="card" id="knn_retrieval">
+  <header><h4>knn_retrieval</h4><span class="chip tie">tie</span></header>
+  <p class="idea">interpolate the ensemble posterior with a k=32 retrieval distribution over training rows in the net&#x27;s representation space; lambda and T fitted on a spatially held-out inner val</p>
+  <p class="hyp"><span>Hypothesis</span>a non-parametric local model — locality in FEATURE space with no partition at all. The parametric net compresses 664k rows into 52k weights and necessarily averages away the rare local configurations; the datastore keeps them. This is the one arm that can add information the network never encoded, which is why it is scored against the group-val control and why lambda=1 is in the grid</p>
+  <p class="prov">Khandelwal et al., Nearest Neighbor Language Models, ICLR 2020</p>
+  <p class="res">0.7384 &nbsp; Δ -0.0030 &nbsp; folds -0.0078, -0.0017, +0.0005</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>decision-rule</h3>
+  <p class="blurb">Leave the network alone; change how its output is read. Macro-F1's optimal rule is a per-class threshold, not argmax.</p>
+  <div class="cards"><article class="card" id="dr_oracle_offsets">
+  <header><h4>dr_oracle_offsets</h4><span class="chip bound">upper-bound</span></header>
+  <p class="idea">UPPER BOUND ONLY: the same per-class offsets fitted directly on the test fold — measures how much macro-F1 a perfect decision rule could ever recover — now known to be OPTIMISM, not headroom</p>
+  <p class="hyp"><span>Hypothesis</span>UPPER BOUND, and a loose one. The few-shot curve shows that fitting these same 10 offsets on a subset of the target region and scoring on held-out rows is negative at every budget up to 22k labels/fold, so essentially all of this +0.0064 is the optimism of tuning 10 free parameters against a non-smooth metric on the rows they are scored on.</p>
+  <p class="prov">Koyejo et al. 2014 / Lipton et al. 2014 (plug-in F-measure)</p>
+  <p class="res">0.7436 &nbsp; Δ +0.0022 &nbsp; folds +0.0004, +0.0027, +0.0036</p>
+</article><article class="card" id="dr_fewshot_0p1">
+  <header><h4>dr_fewshot_0p1</h4><span class="chip tie">tie</span></header>
+  <p class="idea">per-class offsets fitted on 10.0% of the TARGET region&#x27;s labels (~22,124 points/fold), scored on the held-out remainder</p>
+  <p class="hyp"><span>Hypothesis</span>the optimal decision rule is region-specific and cannot be transferred from training regions — but it is only 10 numbers, so a small labelling budget inside the target region may recover it</p>
+  <p class="prov">few-shot / on-site calibration of a plug-in F-measure rule</p>
+  <p class="res">0.7400 &nbsp; Δ -0.0018 &nbsp; folds +0.0017, +0.0008, -0.0081</p>
+</article><article class="card" id="dr_fewshot_0p02">
+  <header><h4>dr_fewshot_0p02</h4><span class="chip tie">tie</span></header>
+  <p class="idea">per-class offsets fitted on 2.0% of the TARGET region&#x27;s labels (~4,424 points/fold), scored on the held-out remainder</p>
+  <p class="hyp"><span>Hypothesis</span>the optimal decision rule is region-specific and cannot be transferred from training regions — but it is only 10 numbers, so a small labelling budget inside the target region may recover it</p>
+  <p class="prov">few-shot / on-site calibration of a plug-in F-measure rule</p>
+  <p class="res">0.7388 &nbsp; Δ -0.0025 &nbsp; folds -0.0063, -0.0014, +0.0002</p>
+</article><article class="card" id="dr_fewshot_0p05">
+  <header><h4>dr_fewshot_0p05</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">per-class offsets fitted on 5.0% of the TARGET region&#x27;s labels (~11,062 points/fold), scored on the held-out remainder</p>
+  <p class="hyp"><span>Hypothesis</span>the optimal decision rule is region-specific and cannot be transferred from training regions — but it is only 10 numbers, so a small labelling budget inside the target region may recover it</p>
+  <p class="prov">few-shot / on-site calibration of a plug-in F-measure rule</p>
+  <p class="res">0.7376 &nbsp; Δ -0.0042 &nbsp; folds -0.0098, -0.0009, -0.0018</p>
+</article><article class="card" id="dr_logitadj_tau">
+  <header><h4>dr_logitadj_tau</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">single-parameter prior adjustment log p - tau*log(prior), tau swept on the spatial inner val</p>
+  <p class="hyp"><span>Hypothesis</span>macro-F1&#x27;s Bayes rule is a per-class threshold rule, not argmax of the posterior; if the gap is real it is free, since the network is untouched</p>
+  <p class="prov">Koyejo et al. 2014 / Lipton et al. 2014 (plug-in F-measure)</p>
+  <p class="res">0.7372 &nbsp; Δ -0.0042 &nbsp; folds -0.0078, -0.0041, -0.0007</p>
+</article><article class="card" id="dr_prior_tune">
+  <header><h4>dr_prior_tune</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">per-class log-offsets fitted by coordinate ascent on the spatial inner val (plug-in macro-F1 rule)</p>
+  <p class="hyp"><span>Hypothesis</span>macro-F1&#x27;s Bayes rule is a per-class threshold rule, not argmax of the posterior; if the gap is real it is free, since the network is untouched</p>
+  <p class="prov">Koyejo et al. 2014 / Lipton et al. 2014 (plug-in F-measure)</p>
+  <p class="res">0.7346 &nbsp; Δ -0.0068 &nbsp; folds -0.0069, -0.0067, -0.0068</p>
+</article><article class="card" id="dr_fewshot_0p01">
+  <header><h4>dr_fewshot_0p01</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">per-class offsets fitted on 1.0% of the TARGET region&#x27;s labels (~2,212 points/fold), scored on the held-out remainder</p>
+  <p class="hyp"><span>Hypothesis</span>the optimal decision rule is region-specific and cannot be transferred from training regions — but it is only 10 numbers, so a small labelling budget inside the target region may recover it</p>
+  <p class="prov">few-shot / on-site calibration of a plug-in F-measure rule</p>
+  <p class="res">0.7342 &nbsp; Δ -0.0072 &nbsp; folds -0.0059, -0.0093, -0.0065</p>
+</article><article class="card" id="dr_priorem">
+  <header><h4>dr_priorem</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">Saerens EM target-prior estimate from the target fold&#x27;s own unlabelled probabilities (transductive)</p>
+  <p class="hyp"><span>Hypothesis</span>macro-F1&#x27;s Bayes rule is a per-class threshold rule, not argmax of the posterior; if the gap is real it is free, since the network is untouched</p>
+  <p class="prov">Saerens et al. 2002</p>
+  <p class="res">0.7337 &nbsp; Δ -0.0077 &nbsp; folds -0.0129, -0.0049, -0.0052</p>
+</article><article class="card" id="dr_fewshot_0p002">
+  <header><h4>dr_fewshot_0p002</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">per-class offsets fitted on 0.2% of the TARGET region&#x27;s labels (~442 points/fold), scored on the held-out remainder</p>
+  <p class="hyp"><span>Hypothesis</span>the optimal decision rule is region-specific and cannot be transferred from training regions — but it is only 10 numbers, so a small labelling budget inside the target region may recover it</p>
+  <p class="prov">few-shot / on-site calibration of a plug-in F-measure rule</p>
+  <p class="res">0.7239 &nbsp; Δ -0.0173 &nbsp; folds -0.0225, -0.0203, -0.0090</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>loss</h3>
+  <p class="blurb">Move the decision boundary during training — margins and priors aimed at the rare and weak classes.</p>
+  <div class="cards"><article class="card" id="smote_weak">
+  <header><h4>smote_weak</h4><span class="chip tie">tie</span></header>
+  <p class="idea">SMOTE oversampling of the four weak classes (k=5, +50%)</p>
+  <p class="hyp"><span>Hypothesis</span>the reference oversampling baseline; also a sharp test of the earlier spatial-jitter negative — if interpolation per se destroys signal it will lose the same way, if that result was about geography it will not</p>
+  <p class="prov">Chawla et al., SMOTE, JAIR 2002</p>
+  <p class="res">0.7420 &nbsp; Δ +0.0006 &nbsp; folds -0.0010, +0.0002, +0.0025</p>
+</article><article class="card" id="softf1">
+  <header><h4>softf1</h4><span class="chip tie">tie</span></header>
+  <p class="idea">CE + differentiable macro-F1 surrogate</p>
+  <p class="hyp"><span>Hypothesis</span>we are scored on macro-F1 but optimise likelihood; the surrogate makes every class&#x27;s F1 contribute equally regardless of support</p>
+  <p class="prov">soft-F1 / Dice-style surrogate (classic)</p>
+  <p class="res">0.7418 &nbsp; Δ +0.0004 &nbsp; folds +0.0001, -0.0008, +0.0019</p>
+</article><article class="card" id="ldam_drw">
+  <header><h4>ldam_drw</h4><span class="chip tie">tie</span></header>
+  <p class="idea">per-class margin ~ n_c^{-1/4} + deferred re-weighting at epoch 40</p>
+  <p class="hyp"><span>Hypothesis</span>re-weighting alone rescales gradients but leaves the margin structure untouched; a rare class needs a WIDER decision region, not just a louder gradient</p>
+  <p class="prov">Cao et al., LDAM-DRW, NeurIPS 2019</p>
+  <p class="res">0.7411 &nbsp; Δ -0.0002 &nbsp; folds -0.0003, -0.0041, +0.0037</p>
+</article><article class="card" id="pair_margin">
+  <header><h4>pair_margin</h4><span class="chip tie">tie</span></header>
+  <p class="idea">hinge margin ONLY between crop/grassland and scrub/sparse-veg</p>
+  <p class="hyp"><span>Hypothesis</span>the ontology probe located 0.044 macro-F1 inside these two boundaries; a penalty that is exactly zero for every other class cannot trade the strong classes away</p>
+  
+  <p class="res">0.7394 &nbsp; Δ -0.0020 &nbsp; folds -0.0030, -0.0016, -0.0014</p>
+</article><article class="card" id="focal">
+  <header><h4>focal</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">alpha-balanced focal loss (gamma=2) in place of plain weighted CE</p>
+  <p class="hyp"><span>Hypothesis</span>the reference imbalance loss, and a two-sided test: focusing the gradient on hard rows helps if the weak classes are hard-but-learnable and hurts if they are label noise, which is itself worth knowing</p>
+  <p class="prov">Lin et al., Focal Loss, ICCV 2017</p>
+  <p class="res">0.7373 &nbsp; Δ -0.0040 &nbsp; folds -0.0057, -0.0055, -0.0009</p>
+</article><article class="card" id="vs_loss">
+  <header><h4>vs_loss</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">multiplicative Delta_c AND additive iota_c on the logits</p>
+  <p class="hyp"><span>Hypothesis</span>logit adjustment (additive) alone reached +0.0015 here — half the win threshold; VS adds the multiplicative term that LDAM supplies, and the two corrections are theoretically complementary</p>
+  <p class="prov">Kini et al., Label-Imbalanced Learning, NeurIPS 2021</p>
+  <p class="res">0.7333 &nbsp; Δ -0.0081 &nbsp; folds -0.0151, -0.0063, -0.0029</p>
+</article><article class="card" id="balanced_softmax">
+  <header><h4>balanced_softmax</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">add log-prior to logits during training, predict plain</p>
+  <p class="hyp"><span>Hypothesis</span>sqrt weights only partially correct the prior; the Bayes-optimal correction for a shifted label distribution is exactly this shift</p>
+  <p class="prov">Ren et al., Balanced Meta-Softmax, NeurIPS 2020</p>
+  <p class="res">0.6189 &nbsp; Δ -0.1224 &nbsp; folds -0.1049, -0.1864, -0.0760</p>
+</article><article class="card" id="vs_loss_tau1.0">
+  <header><h4>vs_loss_tau1.0</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">multiplicative Delta_c AND additive iota_c on the logits — at tau=1.0 (the paper&#x27;s nominal setting)</p>
+  <p class="hyp"><span>Hypothesis</span>RECORDED AS A HYPERPARAMETER FAILURE, not a mechanism failure: tau=1.0 applies the FULL log-prior correction, which on a 140:1 imbalance is a 4.9-nat spread and boosts the rarest class ~134x at test. Frequent classes collapse to F1 0.000 and inner-val collapses too. Earlier work on this dataset already found the additive correction peaks at tau=0.25 and hurts by tau=0.5, so this setting was outside the known-usable range before it ran.</p>
+  <p class="prov">Kini et al., Label-Imbalanced Learning, NeurIPS 2021</p>
+  <p class="res">0.1409 &nbsp; Δ -0.6005 &nbsp; folds -0.6101, -0.6764, -0.5150</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>hierarchy</h3>
+  <p class="blurb">Split the problem: an easy between-group decision and a hard within-group one, each with its own parameters.</p>
+  <div class="cards"><article class="card" id="hier_c2f">
+  <header><h4>hier_c2f</h4><span class="chip tie">tie</span></header>
+  <p class="idea">factorised P(class) = P(supergroup) * P(class | supergroup)</p>
+  <p class="hyp"><span>Hypothesis</span>a flat softmax spends one set of logits on both the easy between-group problem and the hard within-group one; factorising gives the within-group split its own parameters and a gradient computed only over the rows where the distinction exists</p>
+  <p class="prov">hierarchical softmax / coarse-to-fine classification</p>
+  <p class="res">0.7425 &nbsp; Δ +0.0011 &nbsp; folds -0.0016, -0.0001, +0.0050</p>
+</article><article class="card" id="hier_specialist">
+  <header><h4>hier_specialist</h4><span class="chip tie">tie</span></header>
+  <p class="idea">binary expert per confusable pair, consulted only on contested rows</p>
+  <p class="hyp"><span>Hypothesis</span>the strongest form of the hierarchy claim with a structural guarantee: rows whose top-2 is not a registered pair are returned untouched, so strong classes cannot lose</p>
+  
+  <p class="res">0.7390 &nbsp; Δ -0.0023 &nbsp; folds -0.0027, -0.0023, -0.0021</p>
+</article><article class="card" id="hier_finewt">
+  <header><h4>hier_finewt</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">same hierarchy, fine-level loss weighted 2x (HXE-style)</p>
+  <p class="hyp"><span>Hypothesis</span>if factorising helps, the level weighting says WHERE the capacity should go; the coarse level is already at F1 0.85</p>
+  <p class="prov">Bertinetto et al., Making Better Mistakes, CVPR 2020</p>
+  <p class="res">0.7334 &nbsp; Δ -0.0080 &nbsp; folds -0.0097, -0.0105, -0.0038</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>classifier</h3>
+  <p class="blurb">Keep the representation, retrain or rescale only the last layer.</p>
+  <div class="cards"><article class="card" id="tau_norm">
+  <header><h4>tau_norm</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">divide each class&#x27;s weight vector by ||w_c||^tau, tau picked on spatial val</p>
+  <p class="hyp"><span>Hypothesis</span>long-tail nets grow larger classifier norms for frequent classes; rebalancing the norms needs no retraining and cannot disturb the representation</p>
+  <p class="prov">Kang et al., Decoupling Representation and Classifier, ICLR 2020</p>
+  <p class="res">0.7374 &nbsp; Δ -0.0040 &nbsp; folds -0.0082, -0.0026, -0.0011</p>
+</article><article class="card" id="crt">
+  <header><h4>crt</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">freeze the trunk, re-init and retrain the last layer class-balanced</p>
+  <p class="hyp"><span>Hypothesis</span>instance-balanced data teaches better FEATURES, class-balanced data teaches a better BOUNDARY; the deployed single sqrt-weighted loss has to compromise between the two, decoupling does not</p>
+  <p class="prov">Kang et al., ICLR 2020</p>
+  <p class="res">0.7311 &nbsp; Δ -0.0102 &nbsp; folds -0.0130, -0.0117, -0.0060</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>optimizer</h3>
+  <p class="blurb">Same model, different search — a different implicit bias about which solution gets found.</p>
+  <div class="cards"><article class="card" id="opt_schedulefree">
+  <header><h4>opt_schedulefree</h4><span class="chip tie">tie</span></header>
+  <p class="idea">Schedule-Free AdamW (evaluate the averaged iterate)</p>
+  <p class="hyp"><span>Hypothesis</span>early stopping means the training horizon is unknown, which is precisely the setting Schedule-Free targets; its iterate average is also a cheaper EMA than the one already tried</p>
+  <p class="prov">Defazio et al., The Road Less Scheduled, NeurIPS 2024</p>
+  <p class="res">0.7428 &nbsp; Δ +0.0015 &nbsp; folds -0.0001, +0.0014, +0.0032</p>
+</article><article class="card" id="opt_lion">
+  <header><h4>opt_lion</h4><span class="chip tie">tie</span></header>
+  <p class="idea">Lion — sign of interpolated momentum</p>
+  <p class="hyp"><span>Hypothesis</span>uniform per-coordinate step size acts as an implicit regulariser; on a problem whose failure mode is memorising train regions, a coarser update may transfer better</p>
+  <p class="prov">Chen et al., Symbolic Discovery of Optimization Algorithms, 2023</p>
+  <p class="res">0.7416 &nbsp; Δ +0.0003 &nbsp; folds -0.0006, +0.0003, +0.0012</p>
+</article><article class="card" id="opt_muon">
+  <header><h4>opt_muon</h4><span class="chip tie">tie</span></header>
+  <p class="idea">Muon (orthogonalised momentum) on hidden weights, Adam elsewhere</p>
+  <p class="hyp"><span>Hypothesis</span>SAM and EMA both tied, which ruled out flat-minima effects — but both search for a different minimum with the same geometry. Muon changes the metric of the step itself (spectral, not per-coordinate), so it explores a different solution family</p>
+  <p class="prov">Jordan et al., Muon, 2024</p>
+  <p class="res">0.7403 &nbsp; Δ -0.0011 &nbsp; folds -0.0010, -0.0001, -0.0020</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>activation</h3>
+  <p class="blurb">Same everything, different nonlinearity.</p>
+  <div class="cards"><article class="card" id="act_xielu">
+  <header><h4>act_xielu</h4><span class="chip tie">tie</span></header>
+  <p class="idea">replace ReLU with xielu</p>
+  <p class="hyp"><span>Hypothesis</span>trainable expanded IELU; strictly contains ReLU as a special case — the trunk shape and every other knob stay fixed, so any delta is the nonlinearity alone</p>
+  
+  <p class="res">0.7429 &nbsp; Δ +0.0015 &nbsp; folds -0.0001, +0.0011, +0.0035</p>
+</article><article class="card" id="act_gelu">
+  <header><h4>act_gelu</h4><span class="chip tie">tie</span></header>
+  <p class="idea">replace ReLU with gelu</p>
+  <p class="hyp"><span>Hypothesis</span>smooth gating, the modern default — the trunk shape and every other knob stay fixed, so any delta is the nonlinearity alone</p>
+  
+  <p class="res">0.7418 &nbsp; Δ +0.0004 &nbsp; folds -0.0014, +0.0007, +0.0020</p>
+</article><article class="card" id="act_prelu">
+  <header><h4>act_prelu</h4><span class="chip tie">tie</span></header>
+  <p class="idea">replace ReLU with prelu</p>
+  <p class="hyp"><span>Hypothesis</span>learned negative slope per unit — lets dead units recover — the trunk shape and every other knob stay fixed, so any delta is the nonlinearity alone</p>
+  
+  <p class="res">0.7410 &nbsp; Δ -0.0003 &nbsp; folds -0.0015, -0.0011, +0.0017</p>
+</article><article class="card" id="act_mish">
+  <header><h4>act_mish</h4><span class="chip tie">tie</span></header>
+  <p class="idea">replace ReLU with mish</p>
+  <p class="hyp"><span>Hypothesis</span>self-regularised non-monotone; reported gains on small tabular nets — the trunk shape and every other knob stay fixed, so any delta is the nonlinearity alone</p>
+  
+  <p class="res">0.7404 &nbsp; Δ -0.0010 &nbsp; folds -0.0027, -0.0014, +0.0011</p>
+</article><article class="card" id="act_snake">
+  <header><h4>act_snake</h4><span class="chip tie">tie</span></header>
+  <p class="idea">replace ReLU with snake</p>
+  <p class="hyp"><span>Hypothesis</span>periodic inductive bias for non-monotone spectral boundaries — the trunk shape and every other knob stay fixed, so any delta is the nonlinearity alone</p>
+  
+  <p class="res">0.7403 &nbsp; Δ -0.0011 &nbsp; folds -0.0060, -0.0025, +0.0052</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>architecture</h3>
+  <p class="blurb">Representations the flat MLP cannot express.</p>
+  <div class="cards"><article class="card" id="numemb_lidar">
+  <header><h4>numemb_lidar</h4><span class="chip tie">tie</span></header>
+  <p class="idea">periodic (PLR) embeddings on the 3 lidar columns only</p>
+  <p class="hyp"><span>Hypothesis</span>elevation/TRI/CHM have NON-MONOTONE class structure (mire low, scrub mid, bare high) that a first linear layer can only cut once per unit; periodic embeddings resolve bands directly. Restricted to lidar because those 3 columns are the physical, region-transferable features</p>
+  <p class="prov">Gorishniy et al., On Embeddings for Numerical Features, NeurIPS 2022</p>
+  <p class="res">0.7385 &nbsp; Δ -0.0028 &nbsp; folds -0.0028, -0.0080, +0.0023</p>
+</article><article class="card" id="numemb_all">
+  <header><h4>numemb_all</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">periodic (PLR) embeddings on all 67 features</p>
+  <p class="hyp"><span>Hypothesis</span>same mechanism applied to the AlphaEarth bands too; the risk is that 64 already-learned embedding dims do not need re-embedding and the extra width just memorises regions</p>
+  <p class="prov">Gorishniy et al., NeurIPS 2022</p>
+  <p class="res">0.7380 &nbsp; Δ -0.0033 &nbsp; folds -0.0044, -0.0098, +0.0042</p>
+</article><article class="card" id="tabm">
+  <header><h4>tabm</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">TabM: k=8 weight-shared submodels trained jointly (BatchEnsemble)</p>
+  <p class="hyp"><span>Hypothesis</span>ensembling is the ONE lever that ever worked here, yet 5-&gt;15 independent seeds bought nothing — TabM&#x27;s members share weights and are trained jointly, so their diversity is a regulariser rather than init variance, which is a different mechanism</p>
+  <p class="prov">Gorishniy et al., TabM, ICLR 2025</p>
+  <p class="res">0.7283 &nbsp; Δ -0.0130 &nbsp; folds -0.0148, -0.0153, -0.0090</p>
+</article><article class="card" id="kan">
+  <header><h4>kan</h4><span class="chip loss">LOSS</span></header>
+  <p class="idea">Chebyshev Kolmogorov-Arnold network (learnable edge functions)</p>
+  <p class="hyp"><span>Hypothesis</span>every architecture tried so far is a fixed-nonlinearity MLP variant, and they all tie — KAN changes the function BASIS (learned univariate functions on edges), which is the one structural axis left untested</p>
+  <p class="prov">Liu et al., KAN, 2024 (Chebyshev variant)</p>
+  <p class="res">0.7106 &nbsp; Δ -0.0308 &nbsp; folds -0.0331, -0.0298, -0.0294</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>transfer</h3>
+  <p class="blurb">Move what one model knows into another.</p>
+  <div class="cards"><article class="card" id="selfdistill">
+  <header><h4>selfdistill</h4><span class="chip tie">tie</span></header>
+  <p class="idea">5-seed ensemble teaches a fresh identical net (T=2)</p>
+  <p class="hyp"><span>Hypothesis</span>soft targets carry inter-class similarity that hard labels discard, and that structure is densest exactly where the weak classes overlap; also the standard way to keep an ensemble&#x27;s benefit in one model</p>
+  <p class="prov">Hinton et al. 2015 / Furlanello et al., Born-Again Networks, 2018</p>
+  <p class="res">0.7401 &nbsp; Δ -0.0013 &nbsp; folds -0.0014, -0.0017, -0.0007</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>transductive</h3>
+  <p class="blurb">Use the target region's own UNLABELLED pixels — always available at deployment, since inference runs over rasters.</p>
+  <div class="cards"><article class="card" id="tta_cbst">
+  <header><h4>tta_cbst</h4><span class="chip tie">tie</span></header>
+  <p class="idea">class-balanced self-training on the target fold&#x27;s UNLABELLED features</p>
+  <p class="hyp"><span>Hypothesis</span>the documented wall is distribution shift between geographic regions. Every previous attempt fought it with train-side regularisation, which cannot invent information about an unseen region — this uses the target region&#x27;s own unlabelled pixels, which deployment always has, and balances the pseudo-label quota per class so rare classes are not crowded out</p>
+  <p class="prov">Zou et al., CBST, ECCV 2018</p>
+  <p class="res">0.7425 &nbsp; Δ +0.0011 &nbsp; folds -0.0000, +0.0015, +0.0019</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>combo</h3>
+  <p class="blurb">Do two independent wins stack, or do they fix the same error twice?</p>
+  <div class="cards"><article class="card" id="combo_opt_schedulefree_act_xielu">
+  <header><h4>combo_opt_schedulefree_act_xielu</h4><span class="chip tie">tie</span></header>
+  <p class="idea">Schedule-Free AdamW (evaluate the averaged iterate) + replace ReLU with xielu</p>
+  <p class="hyp"><span>Hypothesis</span>are these mechanisms additive or redundant? each won or nearly won alone; if the gains come from the same underlying error they will not stack</p>
+  <p class="prov">Defazio et al., The Road Less Scheduled, NeurIPS 2024</p>
+  <p class="res">0.7442 &nbsp; Δ +0.0028 &nbsp; folds -0.0012, +0.0028, +0.0069</p>
+</article><article class="card" id="combo_opt_schedulefree_hier_c2f">
+  <header><h4>combo_opt_schedulefree_hier_c2f</h4><span class="chip tie">tie</span></header>
+  <p class="idea">Schedule-Free AdamW (evaluate the averaged iterate) + factorised P(class) = P(supergroup) * P(class | supergroup)</p>
+  <p class="hyp"><span>Hypothesis</span>are these mechanisms additive or redundant? each won or nearly won alone; if the gains come from the same underlying error they will not stack</p>
+  <p class="prov">Defazio et al., The Road Less Scheduled, NeurIPS 2024</p>
+  <p class="res">0.7435 &nbsp; Δ +0.0022 &nbsp; folds -0.0006, +0.0020, +0.0051</p>
+</article><article class="card" id="combo_act_xielu_tta_cbst">
+  <header><h4>combo_act_xielu_tta_cbst</h4><span class="chip tie">tie</span></header>
+  <p class="idea">replace ReLU with xielu + class-balanced self-training on the target fold&#x27;s UNLABELLED features</p>
+  <p class="hyp"><span>Hypothesis</span>are these mechanisms additive or redundant? each won or nearly won alone; if the gains come from the same underlying error they will not stack</p>
+  
+  <p class="res">0.7425 &nbsp; Δ +0.0011 &nbsp; folds -0.0000, +0.0015, +0.0019</p>
+</article><article class="card" id="combo_hier_c2f_tta_cbst">
+  <header><h4>combo_hier_c2f_tta_cbst</h4><span class="chip tie">tie</span></header>
+  <p class="idea">factorised P(class) = P(supergroup) * P(class | supergroup) + class-balanced self-training on the target fold&#x27;s UNLABELLED features</p>
+  <p class="hyp"><span>Hypothesis</span>are these mechanisms additive or redundant? each won or nearly won alone; if the gains come from the same underlying error they will not stack</p>
+  <p class="prov">hierarchical softmax / coarse-to-fine classification</p>
+  <p class="res">0.7425 &nbsp; Δ +0.0011 &nbsp; folds -0.0000, +0.0015, +0.0019</p>
+</article><article class="card" id="combo_opt_schedulefree_tta_cbst">
+  <header><h4>combo_opt_schedulefree_tta_cbst</h4><span class="chip tie">tie</span></header>
+  <p class="idea">Schedule-Free AdamW (evaluate the averaged iterate) + class-balanced self-training on the target fold&#x27;s UNLABELLED features</p>
+  <p class="hyp"><span>Hypothesis</span>are these mechanisms additive or redundant? each won or nearly won alone; if the gains come from the same underlying error they will not stack</p>
+  <p class="prov">Defazio et al., The Road Less Scheduled, NeurIPS 2024</p>
+  <p class="res">0.7425 &nbsp; Δ +0.0011 &nbsp; folds -0.0000, +0.0015, +0.0019</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>hierarchy-v2</h3>
+  <p class="blurb"></p>
+  <div class="cards"><article class="card" id="hier_c2f__label_smooth0p0">
+  <header><h4>hier_c2f__label_smooth0p0</h4><span class="chip tie">tie</span></header>
+  <p class="idea">factorised P(class) = P(supergroup) * P(class | supergroup)</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `hier_c2f`: a flat softmax spends one set of logits on both the easy between-group problem and the hard within-group one; factorising gives the within-group split its own parameters and a gradient computed only over the rows where the distinction exists</p>
+  <p class="prov">hierarchical softmax / coarse-to-fine classification</p>
+  <p class="res">0.7412 &nbsp; Δ -0.0002 &nbsp; folds -0.0026, -0.0007, +0.0028</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>locality-v2</h3>
+  <p class="blurb"></p>
+  <div class="cards"><article class="card" id="moe_shared__n_experts8_top_k2">
+  <header><h4>moe_shared__n_experts8_top_k2</h4><span class="chip split">split</span></header>
+  <p class="idea">always-on shared expert (the deployed MLP) + 4 fine-grained routed experts, top-2, router reads the row&#x27;s own features</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_shared`: the nine MoE variants that lost here all REPLACED the global model with a partition of it; shared-expert isolation ADDS local capacity to a global model that is still trained on every row, and the routed experts start at zero so the network begins as the exact deployed model. If content-space locality carries anything, this is the arm that shows it</p>
+  <p class="prov">Dai et al., DeepSeekMoE, ACL 2024 (shared-expert isolation + fine-grained expert segmentation)</p>
+  <p class="res">0.7453 &nbsp; Δ +0.0040 &nbsp; folds -0.0003, +0.0004, +0.0117</p>
+</article><article class="card" id="moe_shared__n_experts16_top_k4">
+  <header><h4>moe_shared__n_experts16_top_k4</h4><span class="chip split">split</span></header>
+  <p class="idea">always-on shared expert (the deployed MLP) + 4 fine-grained routed experts, top-2, router reads the row&#x27;s own features</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_shared`: the nine MoE variants that lost here all REPLACED the global model with a partition of it; shared-expert isolation ADDS local capacity to a global model that is still trained on every row, and the routed experts start at zero so the network begins as the exact deployed model. If content-space locality carries anything, this is the arm that shows it</p>
+  <p class="prov">Dai et al., DeepSeekMoE, ACL 2024 (shared-expert isolation + fine-grained expert segmentation)</p>
+  <p class="res">0.7447 &nbsp; Δ +0.0033 &nbsp; folds -0.0010, -0.0006, +0.0115</p>
+</article><article class="card" id="moe_lossfree__bias_gamma0p01">
+  <header><h4>moe_lossfree__bias_gamma0p01</h4><span class="chip tie">tie</span></header>
+  <p class="idea">content-gated MoE with DeepSeek-V3 auxiliary-loss-free load balancing (per-expert selection bias nudged toward equal load)</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_lossfree`: if the content gate still concentrates a held-out region on one expert, the fix is to balance the router — but a Switch aux loss buys balance by fighting the task loss. The bias trick balances selection while leaving every gradient the task loss produces untouched, so it separates &#x27;routing was unbalanced&#x27; from &#x27;routing was uninformative&#x27;</p>
+  <p class="prov">Wang et al., Auxiliary-Loss-Free Load Balancing / DeepSeek-V3</p>
+  <p class="res">0.7443 &nbsp; Δ +0.0029 &nbsp; folds -0.0003, +0.0008, +0.0082</p>
+</article><article class="card" id="moe_shared__zero_init0">
+  <header><h4>moe_shared__zero_init0</h4><span class="chip tie">tie</span></header>
+  <p class="idea">always-on shared expert (the deployed MLP) + 4 fine-grained routed experts, top-2, router reads the row&#x27;s own features</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_shared`: the nine MoE variants that lost here all REPLACED the global model with a partition of it; shared-expert isolation ADDS local capacity to a global model that is still trained on every row, and the routed experts start at zero so the network begins as the exact deployed model. If content-space locality carries anything, this is the arm that shows it</p>
+  <p class="prov">Dai et al., DeepSeekMoE, ACL 2024 (shared-expert isolation + fine-grained expert segmentation)</p>
+  <p class="res">0.7438 &nbsp; Δ +0.0024 &nbsp; folds -0.0015, +0.0013, +0.0075</p>
+</article><article class="card" id="moe_auxbal__aux_lam0p001">
+  <header><h4>moe_auxbal__aux_lam0p001</h4><span class="chip tie">tie</span></header>
+  <p class="idea">content-gated MoE with the Switch load-balance loss + ST-MoE router z-loss</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_auxbal`: the orthodox balancing recipe, run as the matched comparison for the loss-free arm. Same balance target, different price: this one perturbs the task gradient, and z-loss additionally keeps router logits from drifting to the saturated regime where top-k stops responding to the input</p>
+  <p class="prov">Fedus et al., Switch Transformer, JMLR 2022; Zoph et al., ST-MoE, 2022 (router z-loss)</p>
+  <p class="res">0.7432 &nbsp; Δ +0.0018 &nbsp; folds +0.0004, +0.0007, +0.0044</p>
+</article><article class="card" id="mod_depth__capacity0p25">
+  <header><h4>mod_depth__capacity0p25</h4><span class="chip tie">tie</span></header>
+  <p class="idea">mixture-of-depths: a learned router sends the hardest 50% of rows through an extra residual block, the rest bypass it</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `mod_depth`: locality in DEPTH rather than in parameters. A water pixel is settled by the first layer and a crop/grassland pixel is not, yet a fixed net spends identical compute on both. Giving the contested rows more depth without giving the settled ones any is the one form of extra capacity the scaling study did not test — it found width converts into geographic memorisation, and this adds capacity only where the decision is actually close</p>
+  <p class="prov">Raposo et al., Mixture-of-Depths, 2024</p>
+  <p class="res">0.7431 &nbsp; Δ +0.0017 &nbsp; folds -0.0002, +0.0010, +0.0043</p>
+</article><article class="card" id="mod_depth__capacity0p75">
+  <header><h4>mod_depth__capacity0p75</h4><span class="chip tie">tie</span></header>
+  <p class="idea">mixture-of-depths: a learned router sends the hardest 50% of rows through an extra residual block, the rest bypass it</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `mod_depth`: locality in DEPTH rather than in parameters. A water pixel is settled by the first layer and a crop/grassland pixel is not, yet a fixed net spends identical compute on both. Giving the contested rows more depth without giving the settled ones any is the one form of extra capacity the scaling study did not test — it found width converts into geographic memorisation, and this adds capacity only where the decision is actually close</p>
+  <p class="prov">Raposo et al., Mixture-of-Depths, 2024</p>
+  <p class="res">0.7430 &nbsp; Δ +0.0017 &nbsp; folds +0.0007, +0.0010, +0.0033</p>
+</article><article class="card" id="moe_shared__expert_h1128_expert_h264">
+  <header><h4>moe_shared__expert_h1128_expert_h264</h4><span class="chip tie">tie</span></header>
+  <p class="idea">always-on shared expert (the deployed MLP) + 4 fine-grained routed experts, top-2, router reads the row&#x27;s own features</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_shared`: the nine MoE variants that lost here all REPLACED the global model with a partition of it; shared-expert isolation ADDS local capacity to a global model that is still trained on every row, and the routed experts start at zero so the network begins as the exact deployed model. If content-space locality carries anything, this is the arm that shows it</p>
+  <p class="prov">Dai et al., DeepSeekMoE, ACL 2024 (shared-expert isolation + fine-grained expert segmentation)</p>
+  <p class="res">0.7430 &nbsp; Δ +0.0016 &nbsp; folds -0.0018, +0.0005, +0.0061</p>
+</article><article class="card" id="moe_soup__n_regions1">
+  <header><h4>moe_soup__n_regions1</h4><span class="chip tie">tie</span></header>
+  <p class="idea">fine-tune one copy of the global model per KMeans region, then average the copies in weight space</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `moe_soup`: the literal claim under test — build genuinely local models, then merge them so the result is still deployable to regions none of them owns. Merging removes the router, so this is the one way to buy regional specialisation without paying the extrapolation cost that sank the position-gated MoE</p>
+  <p class="prov">Wortsman et al., Model Soups, ICML 2022 (model merging)</p>
+  <p class="res">0.7406 &nbsp; Δ -0.0008 &nbsp; folds -0.0031, -0.0001, +0.0008</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>replication</h3>
+  <p class="blurb"></p>
+  <div class="cards"><article class="card" id="replication_seed1_moe_shared">
+  <header><h4>replication_seed1_moe_shared</h4><span class="chip tie">tie</span></header>
+  <p class="idea">the best result of the locality round, re-run on an INDEPENDENT seed set (inner-val split + all 5 ensemble members), scored against a seed-1 baseline</p>
+  <p class="hyp"><span>Hypothesis</span>this harness has a noise floor near 0.0013 and the maximum of ~50 draws sits about 2.4 sd above zero for free, so any best-of-N here is presumed winner&#x27;s curse until a fresh seed says otherwise. The previous programme&#x27;s best halved on this test and flipped a fold negative</p>
+  <p class="prov">seed replication, cf. replication_seed1_best_combo</p>
+  <p class="res">0.7428 &nbsp; Δ +0.0016 &nbsp; folds +0.0004, +0.0010, +0.0034</p>
+</article><article class="card" id="replication_seed1_best_combo">
+  <header><h4>replication_seed1_best_combo</h4><span class="chip tie">tie</span></header>
+  <p class="idea">the best result of the whole program, re-run on an INDEPENDENT seed set (inner val split + all 5 ensemble members), scored against a seed-1 baseline</p>
+  <p class="hyp"><span>Hypothesis</span>with 45 trials drawn from a null centred on zero with sd 0.0013, the expected maximum is about +0.0031 — almost exactly what the best combo scored (+0.0028). If that number is selection on noise it will shrink on a fresh draw; if it is a real effect it will hold. It shrank to +0.0013, and fold 0 is negative in both draws. Verdict: tie, and the whole search returns no win.</p>
+  <p class="prov">Defazio et al., The Road Less Scheduled, NeurIPS 2024</p>
+  <p class="res">0.7425 &nbsp; Δ +0.0013 &nbsp; folds -0.0001, +0.0012, +0.0028</p>
+</article><article class="card" id="replication_seed1_mod_depth">
+  <header><h4>replication_seed1_mod_depth</h4><span class="chip tie">tie</span></header>
+  <p class="idea">mixture-of-depths, the highest delta of the whole programme, re-run on an INDEPENDENT seed set and scored against a seed-1 baseline</p>
+  <p class="hyp"><span>Hypothesis</span>mod_depth is the only locality arm whose gain is NOT explained by the matched-capacity control — it beats that control on test while scoring LOWER on inner val, which is the opposite of the capacity signature. That makes it the one result in this round worth trying to break</p>
+  <p class="prov">seed replication, cf. replication_seed1_moe_shared</p>
+  <p class="res">0.7424 &nbsp; Δ +0.0013 &nbsp; folds +0.0018, +0.0001, +0.0019</p>
+</article></div>
+</section>
+<section class="tier-group">
+  <h3>transductive-v2</h3>
+  <p class="blurb"></p>
+  <div class="cards"><article class="card" id="tta_cbst__quantile0p1">
+  <header><h4>tta_cbst__quantile0p1</h4><span class="chip tie">tie</span></header>
+  <p class="idea">class-balanced self-training on the target fold&#x27;s UNLABELLED features</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `tta_cbst`: the documented wall is distribution shift between geographic regions. Every previous attempt fought it with train-side regularisation, which cannot invent information about an unseen region — this uses the target region&#x27;s own unlabelled pixels, which deployment always has, and balances the pseudo-label quota per class so rare classes are not crowded out</p>
+  <p class="prov">Zou et al., CBST, ECCV 2018</p>
+  <p class="res">0.7414 &nbsp; Δ -0.0000 &nbsp; folds -0.0005, -0.0011, +0.0015</p>
+</article><article class="card" id="tta_cbst__quantile0p5">
+  <header><h4>tta_cbst__quantile0p5</h4><span class="chip tie">tie</span></header>
+  <p class="idea">class-balanced self-training on the target fold&#x27;s UNLABELLED features</p>
+  <p class="hyp"><span>Hypothesis</span>follow-up sweep of `tta_cbst`: the documented wall is distribution shift between geographic regions. Every previous attempt fought it with train-side regularisation, which cannot invent information about an unseen region — this uses the target region&#x27;s own unlabelled pixels, which deployment always has, and balances the pseudo-label quota per class so rare classes are not crowded out</p>
+  <p class="prov">Zou et al., CBST, ECCV 2018</p>
+  <p class="res">0.7413 &nbsp; Δ -0.0001 &nbsp; folds -0.0001, +0.0003, -0.0004</p>
+</article></div>
+</section>
+
+<h2>Already ruled out</h2>
+<p class="note">Prior work on this model. The search space below is what remains
+after these, which is why nothing here is another capacity or regularisation
+sweep.</p>
+<ul class="prior"><li><b>capacity &amp; data</b><span>Joint params x data grid: interior optimum at 256,128, monotone decline past it; val-test gap grows to +0.235 at 728k params.</span></li><li><b>regularisation</b><span>18-cell dropout x weight-decay sweep; heavier reg shrinks the gap by dragging val down, test never rises.</span></li><li><b>spatial regularisation</b><span>Spatial jitter and leave-cells-out early stopping both monotonically hurt; the gap is shift, not reclaimable slack.</span></li><li><b>mixture of experts</b><span>9 variants (class, spatial-soft, spatial-hard, aux-supervised, Soft-MoE) all lose; oracle bound says no router can win.</span></li><li><b>ensemble diversity</b><span>5 -&gt; 15 seeds buys +0.0003; 15 diverse architectures match 15 identical seeds to +0.0001.</span></li><li><b>feature attention</b><span>SE-gate, softmax-gate and FT-Transformer self-attention all tie or lose — 64 AlphaEarth bands are already a learned embedding.</span></li><li><b>invariance objectives</b><span>IRM -0.024 and neighbour features -0.029: removing AND adding region information both lose.</span></li><li><b>more labels</b><span>NiN field labels are a wash; learning curves flat for the weak classes past 70% of the data.</span></li></ul>
+
+<footer>
+  <span>DNN/autoresearch</span>
+  <span>3-fold GroupKFold on cell_id · 664k rows · 64 AlphaEarth + 3 lidar</span>
+  <a href="https://wandb.ai/singhg10/nyvest-dnn-autoresearch">every run logged to W&amp;B</a>
+</footer>
+</div>

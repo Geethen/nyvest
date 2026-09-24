@@ -1,0 +1,305 @@
+"""
+AEF Index management - download and filter the geoparquet index.
+
+Uses obstore for efficient GCS and S3 access.
+Supports both Google Cloud Storage (GCS) and Source Cooperative (S3) backends.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+import geopandas as gpd
+import obstore as obs
+from obstore.store import GCSStore, S3Store
+from shapely.geometry import box
+
+from aef_loader.constants import (
+    GCS_BUCKET,
+    GCS_INDEX_BLOB,
+    SOURCE_COOP_BUCKET,
+    SOURCE_COOP_INDEX_BLOB,
+    SOURCE_COOP_REGION,
+    DataSource,
+)
+from aef_loader.types import (
+    AEFTileInfo,
+    BoundingBox,
+    DateRange,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class AEFIndex:
+    """
+    Manages the AEF GeoParquet index for efficient spatial/temporal queries.
+
+    The index contains metadata about all AEF tiles including their
+    bounding boxes, paths, and optionally pre-fetched COG header metadata.
+
+    Supports both GCS (Google Cloud Storage) and Source Cooperative (AWS S3) backends.
+
+    Example:
+        GCS (requires GCP project for requester-pays):
+
+        ```python
+        index = AEFIndex(source=DataSource.GCS, gcp_project="my-project")
+        await index.download()
+        tiles = await index.query(bbox=(-122.5, 37.5, -122.0, 38.0), years=(2020, 2023))
+        ```
+
+        Source Cooperative (public, no auth required):
+
+        ```python
+        index = AEFIndex(source=DataSource.SOURCE_COOP)
+        await index.download()
+        tiles = await index.query(bbox=(-122.5, 37.5, -122.0, 38.0), years=(2020, 2023))
+        ```
+    """
+
+    def __init__(
+        self,
+        source: DataSource = DataSource.GCS,
+        gcp_project: str | None = None,
+        cache_dir: Path | None = None,
+    ):
+        """
+        Initialize AEF index manager.
+
+        Args:
+            source: Data source (GCS or SOURCE_COOP)
+            gcp_project: GCP project ID for requester-pays bucket access (GCS only)
+            cache_dir: Directory for caching the index (default: /tmp)
+        """
+        self.source = source
+        self.gcp_project = gcp_project
+        self.cache_dir = cache_dir or Path("/tmp")
+        self._gdf: gpd.GeoDataFrame | None = None
+        self._index_path: Path | None = None
+
+    @property
+    def _cache_filename(self) -> str:
+        """Get cache filename based on data source."""
+        if self.source == DataSource.SOURCE_COOP:
+            return "aef_index_source_coop.parquet"
+        return "aef_index_gcs.parquet"
+
+    @property
+    def _bucket(self) -> str:
+        """Get bucket name based on data source."""
+        if self.source == DataSource.SOURCE_COOP:
+            return SOURCE_COOP_BUCKET
+        return GCS_BUCKET
+
+    @property
+    def _index_blob(self) -> str:
+        """Get index blob path based on data source."""
+        if self.source == DataSource.SOURCE_COOP:
+            return SOURCE_COOP_INDEX_BLOB
+        return GCS_INDEX_BLOB
+
+    async def download(
+        self,
+        force: bool = False,
+        local_path: Path | None = None,
+    ) -> Path:
+        """
+        Download the AEF index from cloud storage using obstore.
+
+        Args:
+            force: Force re-download even if cached
+            local_path: Custom path for the index file
+
+        Returns:
+            Path to the downloaded index file
+        """
+        if local_path is None:
+            local_path = self.cache_dir / self._cache_filename
+
+        if local_path.exists() and not force:
+            logger.info(f"Using cached AEF index at {local_path}")
+            self._index_path = local_path
+            return local_path
+
+        if self.source == DataSource.SOURCE_COOP:
+            logger.info(
+                f"Downloading AEF index from s3://{self._bucket}/{self._index_blob}"
+            )
+            store = S3Store(
+                bucket=self._bucket,
+                region=SOURCE_COOP_REGION,
+                skip_signature=True,  # Public bucket, no auth needed
+            )
+        else:
+            # GCS - requires project for requester-pays
+            if not self.gcp_project:
+                raise ValueError(
+                    "gcp_project is required for downloading from GCS requester-pays bucket"
+                )
+
+            logger.info(
+                f"Downloading AEF index from gs://{self._bucket}/{self._index_blob}"
+            )
+            store = GCSStore(
+                bucket=self._bucket,
+                client_options={
+                    "default_headers": {"x-goog-user-project": self.gcp_project}
+                },
+            )
+
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+
+        result = await obs.get_async(store, self._index_blob)
+        data = await result.bytes_async()
+
+        local_path.write_bytes(data)
+        logger.info(f"Downloaded AEF index to {local_path}")
+
+        self._index_path = local_path
+        return local_path
+
+    def load(self, path: Path | None = None) -> gpd.GeoDataFrame:
+        """
+        Load the index into memory as a GeoDataFrame.
+
+        Args:
+            path: Path to index file (uses cached path if not provided)
+
+        Returns:
+            GeoDataFrame with AEF tile metadata
+        """
+        if path is None:
+            path = self._index_path
+        if path is None:
+            path = self.cache_dir / self._cache_filename
+
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Index not found at {path}. Call download() first."
+            )
+
+        logger.info(f"Loading AEF index from {path}")
+        self._gdf = gpd.read_parquet(path)
+        logger.info(f"Loaded {len(self._gdf)} tiles from AEF index")
+        return self._gdf
+
+    def _get_start_and_end_year(self, years: int | DateRange) -> tuple[int, int]:
+        if isinstance(years, int):
+            start_year = end_year = years
+            return start_year, end_year
+
+        start_year, end_year = years
+
+        # Handle string dates
+        if isinstance(start_year, str):
+            start_year = int(start_year[:4])
+        if isinstance(end_year, str):
+            end_year = int(end_year[:4])
+
+        return start_year, end_year
+
+    @staticmethod
+    def _bbox_to_wgs84(bbox: BoundingBox, bbox_crs: str) -> BoundingBox:
+        """Reproject ``bbox`` from ``bbox_crs`` to WGS84 with edge densification.
+
+        Returns the bbox unchanged when ``bbox_crs`` is already WGS84. Otherwise
+        uses ``pyproj.Transformer.transform_bounds(densify_pts=21)`` so the
+        WGS84 envelope covers the projected rectangle's outward-bowed edges (see
+        ``query`` note) rather than just its four corners.
+        """
+        from pyproj import CRS, Transformer
+
+        if CRS.from_user_input(bbox_crs) == CRS.from_epsg(4326):
+            return bbox
+        transformer = Transformer.from_crs(bbox_crs, "EPSG:4326", always_xy=True)
+        minx, miny, maxx, maxy = transformer.transform_bounds(
+            bbox[0], bbox[1], bbox[2], bbox[3], densify_pts=21
+        )
+        return (minx, miny, maxx, maxy)
+
+    async def query(
+        self,
+        bbox: BoundingBox | None = None,
+        years: int | DateRange | None = None,
+        limit: int | None = None,
+        bbox_crs: str = "EPSG:4326",
+    ) -> list[AEFTileInfo]:
+        """
+        Query the index for tiles matching the given criteria.
+
+        Args:
+            bbox: Bounding box filter (minx, miny, maxx, maxy) in ``bbox_crs``.
+            years: Single year or (start_year, end_year) tuple
+            limit: Maximum number of tiles to return
+            bbox_crs: CRS of ``bbox``. Defaults to WGS84 (the index geometry's
+                CRS). Pass a projected CRS (e.g. ``"EPSG:32633"``) to supply the
+                AOI in projected coordinates; the bbox is reprojected to WGS84
+                with edge densification before intersecting the index (see note).
+
+        Returns:
+            List of AEFTileInfo objects matching the query
+
+        Note:
+            When ``bbox_crs`` is projected, the bbox edges are densified
+            (``Transformer.transform_bounds(densify_pts=21)``) before reprojecting
+            to WGS84. Transforming only the four corners of a projected rectangle
+            under-covers the true footprint: at high latitudes the reprojected
+            edges bow outward, so a corner-only envelope can miss boundary tiles.
+            Densifying samples along each edge and takes the outer envelope.
+        """
+        if self._gdf is None:
+            self.load()
+
+        assert self._gdf is not None, "Index not loaded"
+        gdf = self._gdf.copy()
+
+        # Apply spatial filter
+        if bbox:
+            minx, miny, maxx, maxy = self._bbox_to_wgs84(bbox, bbox_crs)
+            bbox_geom = box(minx, miny, maxx, maxy)
+            gdf = gdf[gdf.geometry.intersects(bbox_geom)]
+            logger.info(f"After bbox filter: {len(gdf)} tiles")
+
+        # Apply temporal filter
+        if years is not None:
+            start_year, end_year = self._get_start_and_end_year(years)
+            gdf = gdf[(gdf["year"] >= start_year) & (gdf["year"] <= end_year)]
+            logger.info(f"After year filter: {len(gdf)} tiles")
+
+        if limit:
+            gdf = gdf.head(limit)
+
+        if len(gdf) == 0:
+            return []
+
+        tiles = []
+        for _, row in gdf.iterrows():
+            path = row["path"]
+
+            tile = AEFTileInfo(
+                id=str(row.get("fid", row.name)),
+                path=path,
+                year=row["year"],
+                bbox=(
+                    row["wgs84_west"],
+                    row["wgs84_south"],
+                    row["wgs84_east"],
+                    row["wgs84_north"],
+                ),
+                crs_epsg=int(row["crs"].split(":")[1])
+                if ":" in str(row["crs"])
+                else 4326,
+                utm_zone=row.get("utm_zone"),
+                utm_bounds=(
+                    row["utm_west"],
+                    row["utm_south"],
+                    row["utm_east"],
+                    row["utm_north"],
+                ),
+                source=self.source,
+            )
+            tiles.append(tile)
+
+        return tiles

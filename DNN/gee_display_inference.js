@@ -18,7 +18,7 @@
 var CLASSIFIED_ID = 'projects/ee-gsingh/assets/nyvest/class_2024';       // int16 class codes
 var SETSIZE_ID    = 'projects/ee-gsingh/assets/nyvest/uq_2024_setsize';  // uint8 conformal set size
 var MAXPCAL_ID    = 'projects/ee-gsingh/assets/nyvest/uq_2024_maxpcal';  // 1-band uint16 winning-class calibrated proba*60000
-var INSET_ID      = 'projects/ee-gsingh/assets/nyvest/uq_2024_inset';    // C-band uint8 per-class 0/1 conformal-set membership
+// var INSET_ID      = 'projects/ee-gsingh/assets/nyvest/uq_2024_inset';    // C-band uint8 per-class 0/1 conformal-set membership
 // =========================================================================
 
 // ---- class scheme (raw codes -> name + colour) --------------------------
@@ -32,7 +32,7 @@ var CLASSES = [
   {code: 6,  name: 'scrub',     color: 'c49a52'},
   {code: 7,  name: 'wetland',   color: '5fbcd3'},
   {code: 8,  name: 'water',     color: '2b5dbd'},
-  {code: 10, name: 'settle',    color: 'd93030'},
+  {code: 10, name: 'settlement', color: 'd93030'},
   {code: 11, name: 'sparse veg', color: 'cde6a5'},
   {code: 12, name: 'snow/ice',  color: 'ffffff'}
 ];
@@ -42,11 +42,20 @@ var CLASS_NAMES  = CLASSES.map(function (c) { return c.name; });
 var CLASS_COLORS = CLASSES.map(function (c) { return c.color; });
 var NCLASS = CLASSES.length;
 
+function classNameForCode(code) {
+  for (var i = 0; i < CLASSES.length; i++) {
+    if (CLASSES[i].code === code) {
+      return CLASSES[i].name;
+    }
+  }
+  return 'unknown';
+}
+
 // ---- load rasters -------------------------------------------------------
 var classified = ee.Image(CLASSIFIED_ID).selfMask();      // drop nodata (0)
 var setsize    = ee.Image(SETSIZE_ID).updateMask(
                    ee.Image(SETSIZE_ID).neq(255));         // drop 255 nodata
-var inset      = ee.Image(INSET_ID);                       // C-band 0/1 membership
+// var inset      = ee.Image(INSET_ID);                       // C-band 0/1 membership
 
 // Winning-class calibrated probability: maxpcal is already the per-pixel max
 // over classes, encoded *60000. Mask uint16 nodata (65535) before scaling.
@@ -57,9 +66,29 @@ var pcalProb = maxpcal.updateMask(maxpcal.neq(65535))
 
 // Conformal set size derived from the inset membership bands (sum of 0/1 over
 // classes) — a cross-check / alternative to the uq_2024_setsize raster.
-var insetSize = inset.updateMask(inset.neq(255))
-                     .reduce(ee.Reducer.sum())
-                     .rename('inset_size');
+// var insetSize = inset.updateMask(inset.neq(255))
+//                     .reduce(ee.Reducer.sum())
+//                     .rename('inset_size');
+
+// For display, keep 1 as ideal and ramp 2..NCLASS toward worse; move set-size
+// 0 to a separate worst-case bin at NCLASS+1 so it is not confused with low
+// uncertainty.
+var setsizeDisplay = setsize.where(setsize.eq(0), NCLASS + 1)
+                            .rename('setsize_display');
+var SETSIZE_RAMP_PALETTE = [
+  '1a9850',  // 1: ideal singleton set
+  '66bd63',
+  'a6d96a',
+  'd9ef8b',
+  'ffffbf',
+  'fee08b',
+  'fdae61',
+  'f46d43',
+  'd73027',
+  '7f0000'   // NCLASS: high ambiguity
+];
+var SETSIZE_WORST_COLOR = '000000';  // original 0: worst / invalid conformal set
+var SETSIZE_DISPLAY_PALETTE = SETSIZE_RAMP_PALETTE.concat([SETSIZE_WORST_COLOR]);
 
 // Remap raw class codes to 0..NCLASS-1 so the palette lines up exactly
 // (codes are non-contiguous: 8 -> 10 skips 9).
@@ -112,17 +141,17 @@ Map.addLayer(classViz,
   {min: 0, max: NCLASS - 1, palette: CLASS_COLORS},
   'Land cover (classified)');
 
-Map.addLayer(setsize,
-  {min: 0, max: NCLASS, palette: ['000000', '1a9850', 'ffffbf', 'd73027']},
+Map.addLayer(setsizeDisplay,
+  {min: 1, max: NCLASS + 1, palette: SETSIZE_DISPLAY_PALETTE},
   'Conformal set size (uncertainty)', false);
 
 Map.addLayer(pcalProb,
   {min: 0, max: 1, palette: ['440154', '31688e', '35b779', 'fde725']},
   'Winning-class calibrated prob', false);
 
-Map.addLayer(insetSize,
-  {min: 0, max: NCLASS, palette: ['000000', '1a9850', 'ffffbf', 'd73027']},
-  'Set size from inset membership', false);
+// Map.addLayer(insetSize,
+//   {min: 1, max: NCLASS + 1, palette: SETSIZE_DISPLAY_PALETTE},
+//   'Set size from inset membership', false);
 
 // centre on the AOI (approx 3-county nyvest extent, EPSG:4326)
 Map.setCenter(6.4, 60.5, 8);
@@ -142,6 +171,26 @@ function makeCategoricalLegend(title, names, colors) {
     panel.add(ui.Panel([swatch, label], ui.Panel.Layout.Flow('horizontal')));
   }
   return panel;
+}
+
+function makeInfoHeader(title, infoText, fontSize) {
+  var infoPanel = ui.Panel({style: {shown: false, margin: '0 0 6px 0'}});
+  infoPanel.add(ui.Label(infoText, {
+    fontSize: '11px', color: '#555', margin: '0 0 6px 0'
+  }));
+  var infoButton = ui.Button({
+    label: 'i',
+    style: {margin: '0 0 0 6px', padding: '0 4px', fontSize: '11px'},
+    onClick: function () {
+      infoPanel.style().set('shown', !infoPanel.style().get('shown'));
+    }
+  });
+  var header = ui.Panel({layout: ui.Panel.Layout.Flow('horizontal')});
+  header.add(ui.Label(title, {
+    fontWeight: 'bold', fontSize: fontSize || '14px', margin: '0 0 6px 0'
+  }));
+  header.add(infoButton);
+  return {header: header, infoPanel: infoPanel};
 }
 
 // -- continuous colour-bar legend for the UQ layers --
@@ -178,9 +227,146 @@ function makeContinuousLegend(title, palette, tickLabels) {
   return panel;
 }
 
+function makeExplainedContinuousLegend(title, palette, tickLabels, infoText) {
+  var panel = ui.Panel({style: {padding: '8px', position: 'bottom-left'}});
+  var info = makeInfoHeader(title, infoText);
+  panel.add(info.header);
+  panel.add(info.infoPanel);
+  panel.add(makeColorBar(palette));
+  var ticks = ui.Panel({
+    layout: ui.Panel.Layout.Flow('horizontal'),
+    style: {stretch: 'horizontal'}
+  });
+  for (var i = 0; i < tickLabels.length; i++) {
+    var m = (i === 0) ? '2px 0 0 0'
+          : (i === tickLabels.length - 1) ? '2px 0 0 auto'
+          : '2px 0 0 auto';
+    ticks.add(ui.Label(tickLabels[i], {margin: m, fontSize: '11px'}));
+  }
+  panel.add(ticks);
+  return panel;
+}
+
+function makeSetSizeLegend() {
+  var panel = makeExplainedContinuousLegend(
+    'Prediction-set size',
+    SETSIZE_RAMP_PALETTE,
+    ['1 ideal', '2+', String(NCLASS) + ' high'],
+    'LAC+Mondrian conformal prediction returns a set of plausible classes for each pixel at the calibrated risk level (0.1). Size 1 is best: only the predicted class remains plausible. Sizes above 1 mean the calibrated evidence cannot rule out alternatives; larger sets mean more ambiguity. Size 0 is an empty prediction set, the model is unable to assign a class, so it is shown separately as worst.'
+  );
+  var worstSwatch = ui.Label('', {
+    backgroundColor: '#' + SETSIZE_WORST_COLOR,
+    padding: '8px', margin: '6px 6px 0 0', border: '1px solid #999'
+  });
+  var worstLabel = ui.Label('0 worst', {margin: '6px 0 0 0', fontSize: '12px'});
+  panel.add(ui.Panel([worstSwatch, worstLabel], ui.Panel.Layout.Flow('horizontal')));
+  return panel;
+}
+
+function makeProbabilityLegend() {
+  return makeExplainedContinuousLegend(
+    'Winning calibrated prob',
+    ['440154', '31688e', '35b779', 'fde725'],
+    ['0', '1'],
+    'This is the calibrated probability assigned to the winning/predicted class. Higher values indicate stronger calibrated confidence in the chosen class, but this is not the conformal guarantee; use prediction-set size to see how many classes remain plausible under the conformal threshold.'
+  );
+}
+
+function makeInspectorHint() {
+  return ui.Panel([
+    ui.Label('Click the map to inspect pixel values.', {
+      fontSize: '12px', color: '#555', margin: '0'
+    })
+  ], null, {padding: '8px', position: 'top-right'});
+}
+
+var inspectorPanel = ui.Panel({
+  style: {
+    position: 'top-right', padding: '8px', width: '260px', shown: false,
+    backgroundColor: '#ffffff'
+  }
+});
+
+function setInspectorContent(widgets) {
+  inspectorPanel.clear();
+  for (var i = 0; i < widgets.length; i++) {
+    inspectorPanel.add(widgets[i]);
+  }
+}
+
+function addInspector() {
+  Map.add(inspectorPanel);
+  Map.onClick(function (coords) {
+    inspectorPanel.style().set('shown', true);
+    var closeButton = ui.Button({
+      label: 'x',
+      style: {margin: '0 0 0 auto', padding: '0 4px'},
+      onClick: function () { inspectorPanel.style().set('shown', false); }
+    });
+    var header = ui.Panel({layout: ui.Panel.Layout.Flow('horizontal')});
+    header.add(ui.Label('Inspector', {
+      fontWeight: 'bold', fontSize: '14px', margin: '0 0 6px 0'
+    }));
+    header.add(closeButton);
+    setInspectorContent([
+      header,
+      ui.Label('Sampling...', {fontSize: '12px', color: '#555'}),
+      ui.Label(coords.lon.toFixed(5) + ', ' + coords.lat.toFixed(5), {
+        fontSize: '11px', color: '#777', margin: '6px 0 0 0'
+      })
+    ]);
+
+    var point = ee.Geometry.Point([coords.lon, coords.lat]);
+    var sampleImage = ee.Image.cat([
+      classified.rename('class_code'),
+      setsize.rename('set_size'),
+      pcalProb.rename('winning_prob')
+    ]);
+    sampleImage.reduceRegion({
+      reducer: ee.Reducer.first(),
+      geometry: point,
+      scale: 10,
+      bestEffort: true,
+      maxPixels: 1e6
+    }).evaluate(function (values, error) {
+      if (error) {
+        setInspectorContent([
+          header,
+          ui.Label('Could not sample this point.', {fontSize: '12px', color: '#b00020'}),
+          ui.Label(String(error), {fontSize: '11px', color: '#777'})
+        ]);
+        return;
+      }
+
+      values = values || {};
+      var classCode = values.class_code;
+      var classText = classCode === null || classCode === undefined
+        ? 'No classified pixel'
+        : classCode + ' - ' + classNameForCode(classCode);
+      var setSize = values.set_size;
+      var setSizeText = setSize === null || setSize === undefined
+        ? 'No set-size pixel'
+        : String(setSize) + (setSize === 0 ? ' (empty set, worst)' : setSize === 1 ? ' (singleton, ideal)' : ' (ambiguous)');
+      var prob = values.winning_prob;
+      var probText = prob === null || prob === undefined
+        ? 'No probability pixel'
+        : Number(prob).toFixed(3);
+
+      setInspectorContent([
+        header,
+        ui.Label('Class: ' + classText, {fontSize: '12px', margin: '2px 0'}),
+        ui.Label('Set size: ' + setSizeText, {fontSize: '12px', margin: '2px 0'}),
+        ui.Label('Calibrated prob: ' + probText, {fontSize: '12px', margin: '2px 0'}),
+        ui.Label(coords.lon.toFixed(5) + ', ' + coords.lat.toFixed(5), {
+          fontSize: '11px', color: '#777', margin: '6px 0 0 0'
+        })
+      ]);
+    });
+  });
+}
+
 Map.add(makeCategoricalLegend('Land cover class', CLASS_NAMES, CLASS_COLORS));
-Map.add(makeContinuousLegend('Set size (conf.)',
-  ['000000', '1a9850', 'ffffbf', 'd73027'],
-  ['0 (unknown)', '1 (confident)', String(NCLASS) + ' (unsure)']));
-Map.add(makeContinuousLegend('Calibrated prob',
-  ['440154', '31688e', '35b779', 'fde725'], ['0', '1']));
+Map.add(makeSetSizeLegend());
+Map.add(makeProbabilityLegend());
+Map.add(makeInspectorHint());
+addInspector();

@@ -1,0 +1,2 @@
+feff13e367293a2ac41b6f32913400485a8e0db9
+feff13e367293a2ac41b6f32913400485a8e0db9 2026-04-30 11:03:15 +0100 fix: preserve int8 dtype when opening AEF COGs (#6)

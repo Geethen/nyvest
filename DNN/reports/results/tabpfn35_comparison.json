@@ -1,0 +1,75 @@
+{
+  "model": "TabPFN-3.5 (Prior-Labs/tabpfn_3_5, tabpfn-v3.5-20260909.safetensors)",
+  "protocol": "3-fold spatial CV, GroupKFold cell_id, to12_fix relabel, 64 AlphaEarth + 3 lidar features, full per-fold context (no subsampling)",
+  "done": true,
+  "f1_mean": 0.7371,
+  "f1_std": 0.0105,
+  "f1_per_fold": [
+    0.7416,
+    0.7471,
+    0.7226
+  ],
+  "f1_per_class": {
+    "2": 0.5646,
+    "3": 0.7951,
+    "4": 0.7468,
+    "5": 0.5903,
+    "6": 0.675,
+    "7": 0.6859,
+    "8": 0.9545,
+    "10": 0.8549,
+    "11": 0.7771,
+    "12": 0.7267
+  },
+  "fold_meta": [
+    {
+      "fold": 0,
+      "n_estimators": 8,
+      "context_rows": 442493,
+      "test_rows": 221247,
+      "fit_s": 516.8,
+      "predict_s": 254.7,
+      "peak_gpu_mb": 15859.0
+    },
+    {
+      "fold": 1,
+      "n_estimators": 8,
+      "context_rows": 442495,
+      "test_rows": 221245,
+      "fit_s": 511.5,
+      "predict_s": 254.7,
+      "peak_gpu_mb": 15858.0
+    },
+    {
+      "fold": 2,
+      "n_estimators": 8,
+      "context_rows": 442492,
+      "test_rows": 221248,
+      "fit_s": 508.9,
+      "predict_s": 255.1,
+      "peak_gpu_mb": 15858.0
+    }
+  ],
+  "deployed_reference": {
+    "f1_mean": 0.7453,
+    "f1_per_fold": [
+      0.747,
+      0.7463,
+      0.7426
+    ],
+    "f1_per_class": {
+      "2": 0.5507,
+      "3": 0.7869,
+      "4": 0.7422,
+      "5": 0.596,
+      "6": 0.6652,
+      "7": 0.691,
+      "8": 0.9536,
+      "10": 0.8487,
+      "11": 0.7763,
+      "12": 0.8426
+    }
+  },
+  "delta_vs_deployed": -0.0082,
+  "wall_s_so_far": 2302.2
+}

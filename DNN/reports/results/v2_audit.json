@@ -1,0 +1,127 @@
+{
+  "model": "/home/geethen.singh/myprojects/nyvest/models/dnn_final.pt",
+  "n_ctrl": 20000,
+  "seed": 0,
+  "strata": {
+    "changed_13to10": {
+      "n": 20000,
+      "built_rate": 0.3908,
+      "mean_p_built": 0.3042,
+      "pred_dist": {
+        "built": 0.3908,
+        "grassland": 0.2074,
+        "forest": 0.1254,
+        "crop": 0.1128,
+        "wetland": 0.0931,
+        "scrub": 0.0307,
+        "rock+sand": 0.0182,
+        "water": 0.014,
+        "sparse-veg": 0.0076
+      }
+    },
+    "changed_other": {
+      "n": 16291,
+      "built_rate": 0.1873,
+      "mean_p_built": 0.1542,
+      "pred_dist": {
+        "grassland": 0.2642,
+        "built": 0.1873,
+        "crop": 0.1848,
+        "forest": 0.1482,
+        "wetland": 0.1031,
+        "scrub": 0.0467,
+        "water": 0.0339,
+        "sparse-veg": 0.019,
+        "rock+sand": 0.0127
+      }
+    },
+    "ctrl_10": {
+      "n": 20000,
+      "built_rate": 0.8279,
+      "mean_p_built": 0.6921,
+      "pred_dist": {
+        "built": 0.8279,
+        "crop": 0.0699,
+        "grassland": 0.0435,
+        "forest": 0.0198,
+        "scrub": 0.0097,
+        "rock+sand": 0.0095,
+        "wetland": 0.0091,
+        "water": 0.0056,
+        "sparse-veg": 0.005
+      }
+    },
+    "ctrl_13": {
+      "n": 20000,
+      "built_rate": 0.4377,
+      "mean_p_built": 0.3404,
+      "pred_dist": {
+        "built": 0.4377,
+        "crop": 0.1671,
+        "grassland": 0.1652,
+        "forest": 0.0984,
+        "wetland": 0.0625,
+        "scrub": 0.0267,
+        "rock+sand": 0.0195,
+        "sparse-veg": 0.0134,
+        "water": 0.0095
+      }
+    }
+  },
+  "built_rate_by_density": {
+    "changed_13to10": {
+      "isolated (<3/25)": {
+        "n": 13477,
+        "built_rate": 0.2214
+      },
+      "sparse (3-6/25)": {
+        "n": 3290,
+        "built_rate": 0.5957
+      },
+      "clustered (7-12/25)": {
+        "n": 2367,
+        "built_rate": 0.8538
+      },
+      "dense (>12/25)": {
+        "n": 866,
+        "built_rate": 0.9827
+      }
+    },
+    "changed_other": {
+      "isolated (<3/25)": {
+        "n": 11742,
+        "built_rate": 0.1073
+      },
+      "sparse (3-6/25)": {
+        "n": 1921,
+        "built_rate": 0.3082
+      },
+      "clustered (7-12/25)": {
+        "n": 1450,
+        "built_rate": 0.44
+      },
+      "dense (>12/25)": {
+        "n": 1178,
+        "built_rate": 0.4762
+      }
+    },
+    "ctrl_10": {
+      "isolated (<3/25)": {
+        "n": 1589,
+        "built_rate": 0.4021
+      },
+      "sparse (3-6/25)": {
+        "n": 3024,
+        "built_rate": 0.5992
+      },
+      "clustered (7-12/25)": {
+        "n": 6866,
+        "built_rate": 0.8634
+      },
+      "dense (>12/25)": {
+        "n": 8521,
+        "built_rate": 0.9599
+      }
+    }
+  }
+}
